@@ -25,7 +25,7 @@ COLUNAS = {
 }
 
 # 🎯 PROMPT PARA GERAR INTENÇÃO
-defdef gerar_intencao(pergunta):
+def gerar_intencao(pergunta):
     dicionario = """
     COLUNAS:
     - 'orgao_executivo': Secretarias (ex: 'FAZENDA', 'SAUDE', 'EDUCACAO').
