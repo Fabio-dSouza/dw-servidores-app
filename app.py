@@ -19,6 +19,11 @@ Colunas disponíveis na tabela 'dw.vw_indicadores_pessoal':
 - 'categoria': Grupo de carreira (Ex: 'POLICIA CIVIL', 'QUADRO GERAL').
 - 'cargo_nome': Nome do cargo específico.
 - 'total_servidores': Coluna numérica com a QUANTIDADE de pessoas.
+- nas perguntas referentes a quantidades, considerar sempre a última coluna que diz sempre respeito a número de servidores ou vínculos, pois é a mesma coisa.
+- na situação diferenciar ativos, inativos, outros e todas as outras situações, se não mencionado nada na pergunra sobre isso, trazer todos os tipos de situação.
+- a categoria funciona como um cargo pai da coluna cargo_nome, ou seja, o cargo_nome está contido em uma categoria, mas uma categoria pode ter mais de um cargo_nome.
+- considerar o orgão executivo como local de exercício ou lotação do servidor.
+
 """
 
 # 🎯 GERAR INTENÇÃO (FILTROS)
