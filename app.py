@@ -1,47 +1,37 @@
-
 import streamlit as st
 from supabase import create_client
 from groq import Groq
 import json
 import pandas as pd
 
-# 🔐 CONFIG (Certifique-se de que estão no .streamlit/secrets.toml)
-supabase = create_client(
-    st.secrets["SUPABASE_URL"],
-    st.secrets["SUPABASE_KEY"]
-)
+# 🔐 CONFIG
+supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# 🧠 CONTEXTO DA TABELA
 TABELA = "vw_indicadores_pessoal"
-COLUNAS = {
-    "poder_executivo": "texto",
-    "orgao_executivo": "texto",
-    "cargo_nome": "texto",
-    "categoria": "texto",
-    "tipo_vinculo": "texto",
-    "situacao": "texto",
-    "total_servidores": "número" # Corrigido para número se for somar/fazer média
-}
 
-# 🎯 PROMPT PARA GERAR INTENÇÃO
+# 📖 DICIONÁRIO DE DADOS (CONTEXTO PARA A IA)
+DICIONARIO = """
+Colunas disponíveis na tabela 'dw.vw_indicadores_pessoal':
+- 'orgao_executivo': Nome da secretaria/órgão (Ex: 'FAZENDA', 'SAUDE', 'EDUCACAO').
+- 'situacao': Status do servidor (Ex: 'ATIVO', 'INATIVO').
+- 'tipo_vinculo': Tipo de contrato (Ex: 'EFETIVO', 'COMISSIONADO', 'CONTRATO').
+- 'categoria': Grupo de carreira (Ex: 'POLICIA CIVIL', 'QUADRO GERAL').
+- 'cargo_nome': Nome do cargo específico.
+- 'total_servidores': Coluna numérica com a QUANTIDADE de pessoas.
+"""
+
+# 🎯 GERAR INTENÇÃO (FILTROS)
 def gerar_intencao(pergunta):
-    dicionario = """
-    COLUNAS:
-    - 'orgao_executivo': Secretarias (ex: 'FAZENDA', 'SAUDE', 'EDUCACAO').
-    - 'situacao': Status ('ATIVO', 'INATIVO').
-    - 'tipo_vinculo': Contrato ('EFETIVO', 'COMISSIONADO', 'CONTRATO').
-    - 'total_servidores': Use para SOMA.
-    """
-    
     prompt = f"""
-    Responda APENAS com JSON puro. Sem explicações.
-    {dicionario}
-    
-    Exemplo:
-    Pergunta: "Ativos na Fazenda"
-    Resposta: {{"filtro": {{"situacao": "ATIVO", "orgao_executivo": "FAZENDA"}}, "operacao": "soma", "campo": "total_servidores"}}
-    
+    Responda APENAS com JSON puro.
+    {DICIONARIO}
+
+    Regras:
+    1. Para quantidades/totais, use operacao='soma' e campo='total_servidores'.
+    2. Combine filtros se necessário (ex: situacao='ATIVO' AND orgao='FAZENDA').
+    3. Use valores em MAIÚSCULAS para os filtros.
+
     Pergunta: {pergunta}
     """
     
@@ -51,110 +41,76 @@ def gerar_intencao(pergunta):
     )
     
     conteudo = resposta.choices[0].message.content
+    # Limpeza de Markdown
+    conteudo = conteudo.replace("```json", "").replace("```", "").strip()
     
-    # 🛡️ Limpeza robusta para garantir que vire um dicionário
     try:
-        conteudo = conteudo.replace("```json", "").replace("```", "").strip()
         return json.loads(conteudo)
     except:
-        # Se a IA falhar, retornamos um dicionário vazio para não quebrar o .get()
-        return {"filtro": {}, "operacao": "lista"}
+        return {"filtro": {}, "operacao": "lista", "campo": None}
 
-# 🔎 EXECUTAR CONSULTA VIA SUPABASE
+# 🔎 EXECUTAR CONSULTA
 def executar_consulta(intencao):
+    # Conecta explicitamente no schema 'dw'
     query = supabase.schema("dw").table(TABELA).select("*")
 
-    # Aplica todos os filtros que a IA identificar
-    if intencao.get("filtro"):
-        for campo, valor in intencao["filtro"].items():
-            if campo in COLUNAS and valor: # Valida se a coluna existe
+    filtros = intencao.get("filtro", {})
+    if filtros:
+        for campo, valor in filtros.items():
+            if valor:
                 query = query.ilike(campo, f"%{valor}%")
 
     dados = query.execute().data
-    if not dados: return 0
+    if not dados:
+        return "Nenhum dado encontrado."
 
     df = pd.DataFrame(dados)
     
-    # Converte para número para evitar erro de soma de strings
-    df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
+    # Converte coluna de contagem para número
+    if "total_servidores" in df.columns:
+        df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
 
-    # Lógica de agregação
-    if intencao.get("operacao") in ["soma", "count"]:
+    if intencao.get("operacao") == "soma":
         return int(df["total_servidores"].sum())
+
+    return df.head(15).to_dict(orient="records")
+
+# 🗣️ RESPOSTA NATURAL
+def gerar_resposta_final(pergunta, resultado):
+    prompt = f"O usuário perguntou: '{pergunta}'. O resultado do banco de dados foi: {resultado}. Responda de forma direta e amigável."
     
-    # Se a pergunta for "Quais categorias...", a IA deve usar agrupar_por
-    if intencao.get("agrupar_por"):
-        col = intencao["agrupar_por"]
-        return df[col].unique().tolist()
-
-    return df.to_dict(orient="records")
-
-# 🗣️ GERAR RESPOSTA NATURAL
-def gerar_intencao(pergunta):
-    prompt = f"""
-    Atue como um tradutor de perguntas naturais para filtros de banco de dados.
-    Tabela: {TABELA}
-    
-    MAPEAMENTO DE COLUNAS (Use isso para decidir o filtro):
-    - 'orgao_executivo': Nomes de secretarias e órgãos (ex: Fazenda, Educação, Saúde).
-    - 'tipo_vinculo': Tipo de contrato (ex: EFETIVO, COMISSIONADO, TEMPORÁRIO).
-    - 'categoria': Grupos de cargos (ex: Professor, Policial, Técnico).
-    - 'situacao': Status do servidor (ex: ATIVO, INATIVO).
-    - 'cargo_nome': Nome específico da função.
-
-    REGRAS DE OURO:
-    1. Se a pergunta citar 'EFETIVO' ou 'COMISSIONADO', o filtro é na coluna 'tipo_vinculo'.
-    2. Se a pergunta citar 'ATIVO' ou 'INATIVO', o filtro é na coluna 'situacao'.
-    3. Para "quantos", "total" ou "soma", use sempre operacao: "soma" e campo: "total_servidores".
-    4. Responda APENAS o JSON.
-
-    Pergunta: {pergunta}
-    """
-    # ... código Groq ...
-    
-    resposta = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
-    return resposta.choices[0].message.content
+    return res.choices[0].message.content
 
-# 💬 INTERFACE STREAMLIT
-st.set_page_config(page_title="RH Inteligente RS", page_icon="📊")
-st.title("📊 Consulta Inteligente - Pessoal RS")
+# 💬 INTERFACE
+st.title("📊 Consulta Inteligente RH-RS")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# Exibir histórico
-for msg in st.session_state.chat:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-pergunta = st.chat_input("Ex: Quantos servidores ativos existem na Secretaria da Fazenda?")
+pergunta = st.chat_input("Digite sua dúvida (ex: quantos ativos na fazenda?)")
 
 if pergunta:
     st.session_state.chat.append({"role": "user", "content": pergunta})
-    with st.chat_message("user"):
-        st.write(pergunta)
+    
+    try:
+        with st.spinner("Analisando..."):
+            intencao = gerar_intencao(pergunta)
+            resultado = executar_consulta(intencao)
+            resposta = gerar_resposta_final(pergunta, resultado)
+            
+            st.session_state.chat.append({"role": "assistant", "content": resposta})
+            if isinstance(resultado, list): # Se for lista, mostra a tabela também
+                 st.session_state.chat[-1]["data"] = pd.DataFrame(resultado)
+    except Exception as e:
+        st.error(f"Erro: {str(e)}")
 
-    with st.chat_message("assistant"):
-        try:
-            with st.spinner("Analisando dados..."):
-                intencao = gerar_intencao(pergunta)
-                resultado = executar_consulta(intencao)
-                
-                if resultado is None:
-                    resposta = "Não encontrei dados para essa consulta."
-                else:
-                    resposta = gerar_resposta_natural(pergunta, resultado)
-                
-                st.write(resposta)
-                
-                # Se for lista, mostra uma tabela para facilitar
-                if isinstance(resultado, list):
-                    st.dataframe(pd.DataFrame(resultado))
-                
-                st.session_state.chat.append({"role": "assistant", "content": resposta})
-        
-        except Exception as e:
-            st.error(f"Ocorreu um erro: {e}")
+# Exibir chat
+for msg in st.session_state.chat:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+        if "data" in msg:
+            st.dataframe(msg["data"])
