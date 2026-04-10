@@ -27,17 +27,22 @@ COLUNAS = {
 # 🎯 PROMPT PARA GERAR INTENÇÃO
 def gerar_intencao(pergunta):
     prompt = f"""
-    Responda APENAS com JSON válido.
+    Responda APENAS JSON válido.
     Tabela: {TABELA}
     Colunas: {COLUNAS}
 
-    Formato obrigatório:
+    REGRAS CRÍTICAS:
+    1. Se a pergunta pedir "total", "quantos" ou quantidade de pessoas, use "operacao": "soma" e "campo": "total_servidores".
+    2. NUNCA use "count" para colunas que guardam quantidades numéricas.
+    3. Para filtros, use apenas palavras-chave (ex: 'FAZENDA' em vez de '1400-SECRETARIA DA FAZENDA').
+
+    Exemplo de saída:
     {{
-        "filtro": {{"nome_da_coluna": "valor"}},
-        "operacao": "count | soma | lista",
-        "campo": "coluna_para_operacao",
-        "agrupar_por": null
+        "filtro": {{"orgao_executivo": "FAZENDA", "situacao": "ATIVO"}},
+        "operacao": "soma",
+        "campo": "total_servidores"
     }}
+
     Pergunta: {pergunta}
     """
     
@@ -53,38 +58,30 @@ def gerar_intencao(pergunta):
 
 # 🔎 EXECUTAR CONSULTA VIA SUPABASE
 def executar_consulta(intencao):
-    # Conecta no schema correto
     query = supabase.schema("dw").table(TABELA).select("*")
 
-    # Aplicar filtros flexíveis
     if intencao.get("filtro"):
         for campo, valor in intencao["filtro"].items():
-            if valor: # Garante que não está filtrando por algo vazio
-                # ilike + %valor% é o segredo para encontrar '0000-GOVERNO...' 
-                # apenas digitando 'Governo'
-                query = query.ilike(campo, f"%{str(valor).strip()}%")
+            query = query.ilike(campo, f"%{valor}%")
 
-    resultado = query.execute()
-    dados = resultado.data
-
-    if not dados:
-        return None
+    dados = query.execute().data
+    if not dados: return "Nenhum dado encontrado."
 
     df = pd.DataFrame(dados)
 
-    # Lógica de processamento baseada na operação da IA
-    if intencao.get("operacao") == "soma" or intencao.get("operacao") == "count":
-        # Tentamos somar a coluna total_servidores
-        if "total_servidores" in df.columns:
-            # Garante que os valores são números antes de somar
-            total = pd.to_numeric(df["total_servidores"], errors='coerce').sum()
-            return int(total)
-        return len(df) # Fallback para contagem de linhas
+    # CONVERSÃO PARA NÚMERO (Essencial!)
+    if "total_servidores" in df.columns:
+        df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
 
-    if intencao.get("operacao") == "lista":
-        return df.head(20).to_dict(orient="records")
+    if intencao.get("operacao") == "soma":
+        resultado_soma = int(df["total_servidores"].sum())
+        return resultado_soma
 
-    return df.to_dict(orient="records")
+    if intencao.get("operacao") == "count":
+        # Se a IA ainda assim pedir count, somamos por segurança
+        return int(df["total_servidores"].sum())
+
+    return df.head(10).to_dict(orient="records")
 
 # 🗣️ GERAR RESPOSTA NATURAL
 def gerar_resposta_natural(pergunta, resultado):
