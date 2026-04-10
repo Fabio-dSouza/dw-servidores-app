@@ -25,24 +25,23 @@ COLUNAS = {
 }
 
 # 🎯 PROMPT PARA GERAR INTENÇÃO
-def gerar_intencao(pergunta):
+defdef gerar_intencao(pergunta):
+    dicionario = """
+    COLUNAS:
+    - 'orgao_executivo': Secretarias (ex: 'FAZENDA', 'SAUDE', 'EDUCACAO').
+    - 'situacao': Status ('ATIVO', 'INATIVO').
+    - 'tipo_vinculo': Contrato ('EFETIVO', 'COMISSIONADO', 'CONTRATO').
+    - 'total_servidores': Use para SOMA.
+    """
+    
     prompt = f"""
-    Responda APENAS JSON válido.
-    Tabela: {TABELA}
-    Colunas: {COLUNAS}
-
-    REGRAS CRÍTICAS:
-    1. Se a pergunta pedir "total", "quantos" ou quantidade de pessoas, use "operacao": "soma" e "campo": "total_servidores".
-    2. NUNCA use "count" para colunas que guardam quantidades numéricas.
-    3. Para filtros, use apenas palavras-chave (ex: 'FAZENDA' em vez de '1400-SECRETARIA DA FAZENDA').
-
-    Exemplo de saída:
-    {{
-        "filtro": {{"orgao_executivo": "FAZENDA", "situacao": "ATIVO"}},
-        "operacao": "soma",
-        "campo": "total_servidores"
-    }}
-
+    Responda APENAS com JSON puro. Sem explicações.
+    {dicionario}
+    
+    Exemplo:
+    Pergunta: "Ativos na Fazenda"
+    Resposta: {{"filtro": {{"situacao": "ATIVO", "orgao_executivo": "FAZENDA"}}, "operacao": "soma", "campo": "total_servidores"}}
+    
     Pergunta: {pergunta}
     """
     
@@ -52,9 +51,14 @@ def gerar_intencao(pergunta):
     )
     
     conteudo = resposta.choices[0].message.content
-    # Limpeza básica de Markdown
-    conteudo = conteudo.replace("```json", "").replace("```", "").strip()
-    return json.loads(conteudo)
+    
+    # 🛡️ Limpeza robusta para garantir que vire um dicionário
+    try:
+        conteudo = conteudo.replace("```json", "").replace("```", "").strip()
+        return json.loads(conteudo)
+    except:
+        # Se a IA falhar, retornamos um dicionário vazio para não quebrar o .get()
+        return {"filtro": {}, "operacao": "lista"}
 
 # 🔎 EXECUTAR CONSULTA VIA SUPABASE
 def executar_consulta(intencao):
