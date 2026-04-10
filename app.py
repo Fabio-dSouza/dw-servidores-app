@@ -53,30 +53,37 @@ def gerar_intencao(pergunta):
 
 # 🔎 EXECUTAR CONSULTA VIA SUPABASE
 def executar_consulta(intencao):
-    # ADICIONE O .schema("dw") AQUI:
+    # Conecta no schema correto
     query = supabase.schema("dw").table(TABELA).select("*")
 
-    # Aplicar filtros
+    # Aplicar filtros flexíveis
     if intencao.get("filtro"):
         for campo, valor in intencao["filtro"].items():
-            # Usar ilike ajuda a ignorar maiúsculas/minúsculas
-            query = query.ilike(campo, f"%{valor}%")
+            if valor: # Garante que não está filtrando por algo vazio
+                # ilike + %valor% é o segredo para encontrar '0000-GOVERNO...' 
+                # apenas digitando 'Governo'
+                query = query.ilike(campo, f"%{str(valor).strip()}%")
 
-    dados = query.execute().data
+    resultado = query.execute()
+    dados = resultado.data
+
     if not dados:
         return None
 
     df = pd.DataFrame(dados)
 
-    # Lógica de processamento de resultados
-    operacao = intencao.get("operacao")
-    if operacao == "count":
-        return len(df)
-    elif operacao == "soma" and "total_servidores" in df.columns:
-        return int(df["total_servidores"].astype(float).sum())
-    elif operacao == "lista":
-        return df.head(15).to_dict(orient="records")
-    
+    # Lógica de processamento baseada na operação da IA
+    if intencao.get("operacao") == "soma" or intencao.get("operacao") == "count":
+        # Tentamos somar a coluna total_servidores
+        if "total_servidores" in df.columns:
+            # Garante que os valores são números antes de somar
+            total = pd.to_numeric(df["total_servidores"], errors='coerce').sum()
+            return int(total)
+        return len(df) # Fallback para contagem de linhas
+
+    if intencao.get("operacao") == "lista":
+        return df.head(20).to_dict(orient="records")
+
     return df.to_dict(orient="records")
 
 # 🗣️ GERAR RESPOSTA NATURAL
@@ -84,6 +91,9 @@ def gerar_resposta_natural(pergunta, resultado):
     prompt = f"""
     Você é um assistente de dados do RS. 
     Converta o resultado técnico em uma resposta amigável e direta em português.
+    Importante: Os nomes dos órgãos na coluna 'orgao_executivo' começam com um código numérico (ex: '0000-GOVERNO DO ESTADO'). 
+    Ao filtrar, use apenas a palavra-chave principal entre símbolos de porcentagem se não souber o código.    
+    utilize a última coluna para realizar as contagens, somando de acordo com os filtros utilizados
     Pergunta: {pergunta}
     Resultado: {resultado}
     """
