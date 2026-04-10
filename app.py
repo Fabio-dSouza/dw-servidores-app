@@ -1,25 +1,28 @@
 
+
 import streamlit as st
 import pandas as pd
-import psycopg2
+from sqlalchemy import create_engine
 
 st.set_page_config(page_title="DW Servidores", layout="wide")
 
 st.title("Data Warehouse de Servidores")
 st.write("Aplicação Streamlit conectada ao Supabase")
 
-conn = psycopg2.connect(
-    host=st.secrets["supabase"]["host"],
-    database=st.secrets["supabase"]["database"],
-    user=st.secrets["supabase"]["user"],
-    password=st.secrets["supabase"]["password"],
-    port=st.secrets["supabase"]["port"],
-    sslmode="require"   # 🔴 ESTE É O PONTO-CHAVE
+# Montando a URL de conexão
+db_url = (
+    f"postgresql+psycopg2://{st.secrets['supabase']['user']}:"
+    f"{st.secrets['supabase']['password']}@"
+    f"{st.secrets['supabase']['host']}:"
+    f"{st.secrets['supabase']['port']}/"
+    f"{st.secrets['supabase']['database']}?sslmode=require"
 )
+
+engine = create_engine(db_url)
 
 df = pd.read_sql(
     "select * from dw.vw_indicadores_pessoal limit 20",
-    conn
+    engine
 )
 
 st.dataframe(df)
