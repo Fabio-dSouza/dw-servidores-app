@@ -53,12 +53,14 @@ def gerar_intencao(pergunta):
 
 # 🔎 EXECUTAR CONSULTA VIA SUPABASE
 def executar_consulta(intencao):
-    query = supabase.table(TABELA).select("*")
+    # ADICIONE O .schema("dw") AQUI:
+    query = supabase.schema("dw").table(TABELA).select("*")
 
-    # Aplicar filtros dinâmicos
+    # Aplicar filtros
     if intencao.get("filtro"):
         for campo, valor in intencao["filtro"].items():
-            query = query.eq(campo, valor)
+            # Usar ilike ajuda a ignorar maiúsculas/minúsculas
+            query = query.ilike(campo, f"%{valor}%")
 
     dados = query.execute().data
     if not dados:
