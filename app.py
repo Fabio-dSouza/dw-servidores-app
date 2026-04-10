@@ -60,40 +60,53 @@ def gerar_intencao(pergunta):
 def executar_consulta(intencao):
     query = supabase.schema("dw").table(TABELA).select("*")
 
+    # Aplica todos os filtros que a IA identificar
     if intencao.get("filtro"):
         for campo, valor in intencao["filtro"].items():
-            query = query.ilike(campo, f"%{valor}%")
+            if campo in COLUNAS and valor: # Valida se a coluna existe
+                query = query.ilike(campo, f"%{valor}%")
 
     dados = query.execute().data
-    if not dados: return "Nenhum dado encontrado."
+    if not dados: return 0
 
     df = pd.DataFrame(dados)
+    
+    # Converte para número para evitar erro de soma de strings
+    df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
 
-    # CONVERSÃO PARA NÚMERO (Essencial!)
-    if "total_servidores" in df.columns:
-        df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
-
-    if intencao.get("operacao") == "soma":
-        resultado_soma = int(df["total_servidores"].sum())
-        return resultado_soma
-
-    if intencao.get("operacao") == "count":
-        # Se a IA ainda assim pedir count, somamos por segurança
+    # Lógica de agregação
+    if intencao.get("operacao") in ["soma", "count"]:
         return int(df["total_servidores"].sum())
+    
+    # Se a pergunta for "Quais categorias...", a IA deve usar agrupar_por
+    if intencao.get("agrupar_por"):
+        col = intencao["agrupar_por"]
+        return df[col].unique().tolist()
 
-    return df.head(10).to_dict(orient="records")
+    return df.to_dict(orient="records")
 
 # 🗣️ GERAR RESPOSTA NATURAL
-def gerar_resposta_natural(pergunta, resultado):
+def gerar_intencao(pergunta):
     prompt = f"""
-    Você é um assistente de dados do RS. 
-    Converta o resultado técnico em uma resposta amigável e direta em português.
-    Importante: Os nomes dos órgãos na coluna 'orgao_executivo' começam com um código numérico (ex: '0000-GOVERNO DO ESTADO'). 
-    Ao filtrar, use apenas a palavra-chave principal entre símbolos de porcentagem se não souber o código.    
-    utilize a última coluna para realizar as contagens, somando de acordo com os filtros utilizados
+    Atue como um tradutor de perguntas naturais para filtros de banco de dados.
+    Tabela: {TABELA}
+    
+    MAPEAMENTO DE COLUNAS (Use isso para decidir o filtro):
+    - 'orgao_executivo': Nomes de secretarias e órgãos (ex: Fazenda, Educação, Saúde).
+    - 'tipo_vinculo': Tipo de contrato (ex: EFETIVO, COMISSIONADO, TEMPORÁRIO).
+    - 'categoria': Grupos de cargos (ex: Professor, Policial, Técnico).
+    - 'situacao': Status do servidor (ex: ATIVO, INATIVO).
+    - 'cargo_nome': Nome específico da função.
+
+    REGRAS DE OURO:
+    1. Se a pergunta citar 'EFETIVO' ou 'COMISSIONADO', o filtro é na coluna 'tipo_vinculo'.
+    2. Se a pergunta citar 'ATIVO' ou 'INATIVO', o filtro é na coluna 'situacao'.
+    3. Para "quantos", "total" ou "soma", use sempre operacao: "soma" e campo: "total_servidores".
+    4. Responda APENAS o JSON.
+
     Pergunta: {pergunta}
-    Resultado: {resultado}
     """
+    # ... código Groq ...
     
     resposta = client.chat.completions.create(
         model="llama-3.1-8b-instant",
