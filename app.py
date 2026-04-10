@@ -2,28 +2,25 @@
 
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine
+from supabase import create_client
 
 st.set_page_config(page_title="DW Servidores", layout="wide")
 
 st.title("Data Warehouse de Servidores")
 st.write("Aplicação Streamlit conectada ao Supabase")
 
-# Montando a URL de conexão
-db_url = (
-    f"postgresql+psycopg2://{st.secrets['supabase']['user']}:"
-    f"{st.secrets['supabase']['password']}@"
-    f"{st.secrets['supabase']['host']}:"
-    f"{st.secrets['supabase']['port']}/"
-    f"{st.secrets['supabase']['database']}?sslmode=require"
+# Conexão via API do Supabase
+supabase = create_client(
+    st.secrets["supabase"]["url"],
+    st.secrets["supabase"]["service_role_key"]
 )
 
-engine = create_engine(db_url)
+# Consulta segura via view
+response = supabase.rpc(
+    "get_vw_indicadores_pessoal"
+).execute()
 
-df = pd.read_sql(
-    "select * from dw.vw_indicadores_pessoal limit 20",
-    engine
-)
+df = pd.DataFrame(response.data)
 
 st.dataframe(df)
 
