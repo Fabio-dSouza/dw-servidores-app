@@ -1,7 +1,5 @@
 
 import streamlit as st
-
-
 import streamlit as st
 from supabase import create_client
 from groq import Groq
@@ -20,10 +18,13 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 TABELA = "vw_indicadores_pessoal"
 
 COLUNAS = {
-    "nome": "texto",
-    "orgao": "texto",
-    "ativo": "booleano",
-    "salario": "numero"
+    "poder_executivo": "texto",
+    "orgao_executivo": "texto",
+    "cargo_nome": "texto",
+    "categoria": "texto",
+    "tipo_vinculo": "texto",
+    "situacao": "texto",
+    "total_servidores": "texto"
 }
 
 # 🎯 PROMPT PARA GERAR INTENÇÃO (SEM SQL)
@@ -51,8 +52,15 @@ def gerar_intencao(pergunta):
         messages=[{"role": "user", "content": prompt}]
     )
 
-    conteudo = resposta.choices[0].message.content
+  conteudo = resposta.choices[0].message.content
+
+    # remover markdown
     conteudo = conteudo.replace("```json", "").replace("```", "").strip()
+
+    # pegar só o JSON (entre { e })
+    inicio = conteudo.find("{")
+    fim = conteudo.rfind("}") + 1
+    conteudo = conteudo[inicio:fim]
 
     return json.loads(conteudo)
 
@@ -84,22 +92,33 @@ def executar_consulta(intencao):
 
 # 🗣️ GERAR RESPOSTA NATURAL
 def gerar_resposta(pergunta, resultado):
-    prompt = f"""
-    Responda de forma clara e objetiva.
+   prompt = f"""
+Responda APENAS com JSON válido.
+NÃO escreva nenhum texto antes ou depois.
 
-    Pergunta: {pergunta}
-    Resultado: {resultado}
-    """
+Tabela: {TABELA}
+Colunas:
+{COLUNAS}
 
-    resposta = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}]
+Formato obrigatório:
+{{
+    "filtro": {{}},
+    "operacao": "count | media | lista",
+    "campo": null,
+    "agrupar_por": null
+}}
+
+Pergunta: {pergunta}
+
+resposta = client.chat.completions.create(
+    model="llama-3.1-8b-instant",
+    messages=[{"role": "user", "content": prompt}]
     )
 
     return resposta.choices[0].message.content
 
 # 💬 INTERFACE CHAT
-st.title("Consulta Inteligente")
+st.title("Consulta Inteligente para dados funcionais do estado do RS")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
