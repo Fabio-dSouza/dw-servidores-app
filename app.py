@@ -59,7 +59,6 @@ conteudo = resposta.choices[0].message.content
 
 # 🔎 EXECUTAR CONSULTA
 def executar_consulta(intencao):
-    # Conecta explicitamente no schema 'dw'
     query = supabase.schema("dw").table(TABELA).select("*")
 
     filtros = intencao.get("filtro", {})
@@ -73,15 +72,23 @@ def executar_consulta(intencao):
         return "Nenhum dado encontrado."
 
     df = pd.DataFrame(dados)
-    
-    # Converte coluna de contagem para número
-    if "total_servidores" in df.columns:
-        df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
 
+    # 💡 LÓGICA PARA "QUAIS TIPOS..." (Valores Únicos)
+    # Se a pergunta pedir tipos/categorias e não for soma:
+    if intencao.get("operacao") == "lista":
+        # Se a IA sugerir agrupar por uma coluna específica (ex: tipo_vinculo)
+        agrupar = intencao.get("agrupar_por") or intencao.get("campo")
+        
+        if agrupar in df.columns:
+            # Retorna apenas os nomes únicos (EFETIVO, COMISSIONADO, etc)
+            return df[agrupar].unique().tolist()
+    
+    # Lógica de Soma (mantida)
     if intencao.get("operacao") == "soma":
+        df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
         return int(df["total_servidores"].sum())
 
-    return df.head(15).to_dict(orient="records")
+    return df.head(10).to_dict(orient="records")
 
 # 🗣️ RESPOSTA NATURAL
 def gerar_resposta_final(pergunta, resultado):
