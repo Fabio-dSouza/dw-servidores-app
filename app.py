@@ -30,18 +30,19 @@ COLUNAS = {
 # 🎯 PROMPT PARA GERAR INTENÇÃO (SEM SQL)
 def gerar_intencao(pergunta):
     prompt = f"""
-    Você interpreta perguntas e retorna JSON válido.
+    Responda APENAS com JSON válido.
+    NÃO escreva nenhum texto antes ou depois.
 
     Tabela: {TABELA}
     Colunas:
     {COLUNAS}
 
-    Retorne apenas JSON:
+    Formato obrigatório:
     {{
         "filtro": {{}},
         "operacao": "count | media | lista",
-        "campo": "coluna ou null",
-        "agrupar_por": "coluna ou null"
+        "campo": null,
+        "agrupar_por": null
     }}
 
     Pergunta: {pergunta}
@@ -52,12 +53,11 @@ def gerar_intencao(pergunta):
         messages=[{"role": "user", "content": prompt}]
     )
 
-  conteudo = resposta.choices[0].message.content
+    conteudo = resposta.choices[0].message.content
 
-    # remover markdown
+    # limpeza do JSON
     conteudo = conteudo.replace("```json", "").replace("```", "").strip()
 
-    # pegar só o JSON (entre { e })
     inicio = conteudo.find("{")
     fim = conteudo.rfind("}") + 1
     conteudo = conteudo[inicio:fim]
