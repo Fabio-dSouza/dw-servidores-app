@@ -1,7 +1,10 @@
 
 import streamlit as st
+
+st.write("DEBUG SECRETS:", dict(st.secrets))
+import streamlit as st
 from supabase import create_client
-from openai import OpenAI
+from groq import Groq
 import json
 import pandas as pd
 
@@ -11,7 +14,7 @@ supabase = create_client(
     st.secrets["SUPABASE_KEY"]
 )
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # 🧠 CONTEXTO DA TABELA (AJUSTE AQUI)
 TABELA = "servidores"
