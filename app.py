@@ -47,8 +47,9 @@ def gerar_intencao(pergunta):
     """
 
     resposta = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}]
+    model="llama3-70b-8192",
+    messages=[{"role": "user", "content": prompt}]
+)
     )
 
     return json.loads(resposta.choices[0].message.content)
