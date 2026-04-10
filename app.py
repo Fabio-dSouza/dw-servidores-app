@@ -1,15 +1,16 @@
- import streamlit as st
+
+import streamlit as st
 from supabase import create_client
 
 st.set_page_config(
-    page_title="Assistente de Dados de Servidores",
+    page_title="Assistente de Servidores",
     layout="centered"
 )
 
 st.title("🤖 Assistente de Servidores Públicos")
-st.write("Pergunte em linguagem natural sobre os dados de servidores.")
+st.write("Faça perguntas em linguagem natural sobre os dados.")
 
-# Conexão com Supabase
+# Cliente Supabase
 supabase = create_client(
     st.secrets["supabase"]["url"],
     st.secrets["supabase"]["service_role_key"]
@@ -19,65 +20,63 @@ supabase = create_client(
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Exibir histórico
+# Mostrar histórico
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # Entrada do usuário
-user_prompt = st.chat_input("Digite sua pergunta…")
+prompt = st.chat_input("Digite sua pergunta...")
 
-if user_prompt:
-    # Mostra pergunta do usuário
+if prompt:
+    # Exibe pergunta
     st.session_state.messages.append(
-        {"role": "user", "content": user_prompt}
+        {"role": "user", "content": prompt}
     )
     with st.chat_message("user"):
-        st.markdown(user_prompt)
+        st.markdown(prompt)
 
-    # Processar pergunta (regra simples por enquanto)
+    texto = prompt.lower()
     resposta = ""
 
-    texto = user_prompt.lower()
+    # Chamada aos dados (sem mostrar tabela)
+    data = supabase.rpc("get_vw_indicadores_pessoal").execute().data
 
     if "total" in texto and "servidor" in texto:
-        res = supabase.rpc("get_vw_indicadores_pessoal").execute()
-        total = sum(row["total_servidores"] for row in res.data)
+        total = sum(d["total_servidores"] for d in data)
         resposta = f"✅ Existem **{total} servidores** no total."
 
     elif "ativo" in texto:
-        res = supabase.rpc("get_vw_indicadores_pessoal").execute()
         ativos = sum(
-            row["total_servidores"]
-            for row in res.data
-            if row["situacao"] == "ATIVO"
+            d["total_servidores"]
+            for d in data
+            if d["situacao"] == "ATIVO"
         )
         resposta = f"🟢 Existem **{ativos} servidores ativos**."
 
-    elif "secretaria" in texto:
-        res = supabase.rpc("get_vw_indicadores_pessoal").execute()
-        agrupado = {}
-        for r in res.data:
-            org = r["orgao_executivo"]
-            agrupado[org] = agrupado.get(org, 0) + r["total_servidores"]
+    elif "secretaria" in texto or "órgão" in texto:
+        resumo = {}
+        for d in data:
+            org = d["orgao_executivo"]
+            resumo[org] = resumo.get(org, 0) + d["total_servidores"]
 
-        resposta = "📊 **Servidores por secretaria:**\n"
-        for org, total in agrupado.items():
-            resposta += f"- {org}: {total}\n"
+        resposta = "📊 **Servidores por órgão:**\n"
+        for org, qtd in resumo.items():
+            resposta += f"- {org}: {qtd}\n"
 
     else:
         resposta = (
-            "🤔 Ainda não entendi completamente.\n\n"
-            "Você pode perguntar, por exemplo:\n"
+            "🤔 Não entendi completamente.\n\n"
+            "Exemplos de perguntas:\n"
             "- Quantos servidores ativos existem?\n"
             "- Total de servidores\n"
             "- Servidores por secretaria"
         )
 
-    # Mostra resposta
+    # Exibe resposta
     st.session_state.messages.append(
         {"role": "assistant", "content": resposta}
     )
     with st.chat_message("assistant"):
         st.markdown(resposta)
-``
+
