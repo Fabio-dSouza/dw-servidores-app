@@ -13,10 +13,14 @@ conn = psycopg2.connect(
     database=st.secrets["supabase"]["database"],
     user=st.secrets["supabase"]["user"],
     password=st.secrets["supabase"]["password"],
-    port=st.secrets["supabase"]["port"]
+    port=st.secrets["supabase"]["port"],
+    sslmode="require"   # 🔴 ESTE É O PONTO-CHAVE
 )
 
-query = "select * from dw.vw_indicadores_pessoal limit 20"
-df = pd.read_sql(query, conn)
+df = pd.read_sql(
+    "select * from dw.vw_indicadores_pessoal limit 20",
+    conn
+)
 
 st.dataframe(df)
+
