@@ -34,7 +34,7 @@ def gerar_intencao(pergunta):
 
     Regras:
     1. Para quantidades/totais, use operacao='soma' e campo='total_servidores'.
-    2. Combine filtros se necessário (ex: situacao='ATIVO' AND orgao='FAZENDA').
+    2. Para listar tipos, categorias ou nomes, use operacao='lista' e 'agrupar_por' com o nome da coluna.
     3. Use valores em MAIÚSCULAS para os filtros.
 
     Pergunta: {pergunta}
@@ -45,17 +45,19 @@ def gerar_intencao(pergunta):
         messages=[{"role": "user", "content": prompt}]
     )
     
-conteudo = resposta.choices[0].message.content
+    conteudo = resposta.choices[0].message.content
+    
+    # Esta é a parte que estava com erro de indentação:
     conteudo = conteudo.replace("```json", "").replace("```", "").strip()
     
     try:
         obj = json.loads(conteudo)
-        # 🛡️ TRATAMENTO PARA O ERRO 'LIST':
+        # Garante que seja um dicionário, mesmo que a IA mande lista
         if isinstance(obj, list):
-            return obj[0] # Se for lista, pega o primeiro dicionário
+            return obj[0]
         return obj
     except:
-        return {"filtro": {}, "operacao": "lista"}
+        return {"filtro": {}, "operacao": "lista", "campo": None}
 
 # 🔎 EXECUTAR CONSULTA
 def executar_consulta(intencao):
