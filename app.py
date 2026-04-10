@@ -45,14 +45,17 @@ def gerar_intencao(pergunta):
         messages=[{"role": "user", "content": prompt}]
     )
     
-    conteudo = resposta.choices[0].message.content
-    # Limpeza de Markdown
+conteudo = resposta.choices[0].message.content
     conteudo = conteudo.replace("```json", "").replace("```", "").strip()
     
     try:
-        return json.loads(conteudo)
+        obj = json.loads(conteudo)
+        # 🛡️ TRATAMENTO PARA O ERRO 'LIST':
+        if isinstance(obj, list):
+            return obj[0] # Se for lista, pega o primeiro dicionário
+        return obj
     except:
-        return {"filtro": {}, "operacao": "lista", "campo": None}
+        return {"filtro": {}, "operacao": "lista"}
 
 # 🔎 EXECUTAR CONSULTA
 def executar_consulta(intencao):
