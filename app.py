@@ -1,7 +1,7 @@
 
 import streamlit as st
 
-st.write("DEBUG SECRETS:", dict(st.secrets))
+
 import streamlit as st
 from supabase import create_client
 from groq import Groq
