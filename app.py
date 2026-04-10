@@ -1,82 +1,119 @@
 
 import streamlit as st
 from supabase import create_client
+from openai import OpenAI
+import json
+import pandas as pd
 
-st.set_page_config(
-    page_title="Assistente de Servidores",
-    layout="centered"
-)
-
-st.title("🤖 Assistente de Servidores Públicos")
-st.write("Faça perguntas em linguagem natural sobre os dados.")
-
-# Cliente Supabase
+# 🔐 CONFIG
 supabase = create_client(
-    st.secrets["supabase"]["url"],
-    st.secrets["supabase"]["service_role_key"]
+    st.secrets["SUPABASE_URL"],
+    st.secrets["SUPABASE_KEY"]
 )
 
-# Histórico do chat
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Mostrar histórico
-for msg in st.session_state.messages:
+# 🧠 CONTEXTO DA TABELA (AJUSTE AQUI)
+TABELA = "servidores"
+
+COLUNAS = {
+    "nome": "texto",
+    "orgao": "texto",
+    "ativo": "booleano",
+    "salario": "numero"
+}
+
+# 🎯 PROMPT PARA GERAR INTENÇÃO (SEM SQL)
+def gerar_intencao(pergunta):
+    prompt = f"""
+    Você é um sistema que interpreta perguntas e retorna JSON.
+
+    Tabela: {TABELA}
+    Colunas:
+    {COLUNAS}
+
+    Retorne apenas JSON no formato:
+    {{
+        "filtro": {{}},
+        "operacao": "count | media | lista",
+        "campo": "coluna ou null",
+        "agrupar_por": "coluna ou null"
+    }}
+
+    Pergunta: {pergunta}
+    """
+
+    resposta = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return json.loads(resposta.choices[0].message.content)
+
+# 🔎 EXECUTAR CONSULTA SEM SQL
+def executar_consulta(intencao):
+    query = supabase.table(TABELA).select("*")
+
+    # aplicar filtros
+    for campo, valor in intencao["filtro"].items():
+        query = query.eq(campo, valor)
+
+    dados = query.execute().data
+    df = pd.DataFrame(dados)
+
+    if df.empty:
+        return "Nenhum dado encontrado."
+
+    # operações
+    if intencao["operacao"] == "count":
+        return len(df)
+
+    if intencao["operacao"] == "media":
+        return df[intencao["campo"]].mean()
+
+    if intencao["operacao"] == "lista":
+        return df.head(10).to_dict(orient="records")
+
+    return df
+
+# 🗣️ GERAR RESPOSTA NATURAL
+def gerar_resposta(pergunta, resultado):
+    prompt = f"""
+    Responda de forma clara e objetiva.
+
+    Pergunta: {pergunta}
+    Resultado: {resultado}
+    """
+
+    resposta = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return resposta.choices[0].message.content
+
+# 💬 INTERFACE CHAT
+st.title("Consulta Inteligente")
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+pergunta = st.chat_input("Digite sua pergunta...")
+
+if pergunta:
+    st.session_state.chat.append({"role": "user", "content": pergunta})
+
+    try:
+        intencao = gerar_intencao(pergunta)
+        resultado = executar_consulta(intencao)
+        resposta = gerar_resposta(pergunta, resultado)
+
+    except Exception as e:
+        resposta = f"Erro: {str(e)}"
+
+    st.session_state.chat.append({"role": "assistant", "content": resposta})
+
+# exibir chat
+for msg in st.session_state.chat:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# Entrada do usuário
-prompt = st.chat_input("Digite sua pergunta...")
-
-if prompt:
-    # Exibe pergunta
-    st.session_state.messages.append(
-        {"role": "user", "content": prompt}
-    )
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    texto = prompt.lower()
-    resposta = ""
-
-    # Chamada aos dados (sem mostrar tabela)
-    data = supabase.rpc("get_vw_indicadores_pessoal").execute().data
-
-    if "total" in texto and "servidor" in texto:
-        total = sum(d["total_servidores"] for d in data)
-        resposta = f"✅ Existem **{total} servidores** no total."
-
-    elif "ativo" in texto:
-        ativos = sum(
-            d["total_servidores"]
-            for d in data
-            if d["situacao"] == "ATIVO"
-        )
-        resposta = f"🟢 Existem **{ativos} servidores ativos**."
-
-    elif "secretaria" in texto or "órgão" in texto:
-        resumo = {}
-        for d in data:
-            org = d["orgao_executivo"]
-            resumo[org] = resumo.get(org, 0) + d["total_servidores"]
-
-        resposta = "📊 **Servidores por órgão:**\n"
-        for org, qtd in resumo.items():
-            resposta += f"- {org}: {qtd}\n"
-
-    else:
-        resposta = (
-            "🤔 Não entendi completamente.\n\n"
-            "Exemplos de perguntas:\n"
-            "- Quantos servidores ativos existem?\n"
-            "- Total de servidores\n"
-            "- Servidores por secretaria"
-        )
-
-    # Exibe resposta
-    st.session_state.messages.append(
-        {"role": "assistant", "content": resposta}
-    )
-    with st.chat_message("assistant"):
-        st.markdown(resposta)
-
+        st.write(msg["content"])
