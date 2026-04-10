@@ -29,13 +29,13 @@ COLUNAS = {
 # 🎯 PROMPT PARA GERAR INTENÇÃO (SEM SQL)
 def gerar_intencao(pergunta):
     prompt = f"""
-    Você é um sistema que interpreta perguntas e retorna JSON.
+    Você interpreta perguntas e retorna JSON válido.
 
     Tabela: {TABELA}
     Colunas:
     {COLUNAS}
 
-    Retorne apenas JSON no formato:
+    Retorne apenas JSON:
     {{
         "filtro": {{}},
         "operacao": "count | media | lista",
@@ -47,12 +47,14 @@ def gerar_intencao(pergunta):
     """
 
     resposta = client.chat.completions.create(
-    model="llama3-70b-8192",
-    messages=[{"role": "user", "content": prompt}]
-)
+        model="llama3-70b-8192",
+        messages=[{"role": "user", "content": prompt}]
     )
 
-    return json.loads(resposta.choices[0].message.content)
+    conteudo = resposta.choices[0].message.content
+    conteudo = conteudo.replace("```json", "").replace("```", "").strip()
+
+    return json.loads(conteudo)
 
 # 🔎 EXECUTAR CONSULTA SEM SQL
 def executar_consulta(intencao):
