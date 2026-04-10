@@ -17,7 +17,7 @@ supabase = create_client(
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # 🧠 CONTEXTO DA TABELA (AJUSTE AQUI)
-TABELA = "servidores"
+TABELA = "vw_indicadores_pessoal"
 
 COLUNAS = {
     "nome": "texto",
