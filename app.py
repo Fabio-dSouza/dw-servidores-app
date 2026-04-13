@@ -19,32 +19,28 @@ TABELA = "view_completa"
 DICIONARIO = """
 Você interpreta perguntas e retorna JSON válido.
 
-IMPORTANTE:
-Cada linha da tabela representa UM servidor.
+ATENÇÃO:
+- Use SOMENTE estas colunas:
+  tipo_orgao, orgao, cargo, categoria, vinculo, situacao
+
+- Nunca invente nomes de colunas
+- Nunca use valores genéricos como "orgao"
 
 SINÔNIMOS:
-- ativo, ativos → ATIVO
-- inativo, inativos → INATIVO
-
-COLUNAS:
-- orgao (texto)
-- cargo (texto)
-- categoria (texto)
-- vinculo (texto)
-- situacao (texto)
+- "adm direta", "adm. direta" → tipo_orgao = "ADMINISTRACAO DIRETA"
+- "ativo", "ativos" → situacao = "ATIVO"
+- "inativo", "inativos" → situacao = "INATIVO"
 
 REGRAS:
-1. Perguntas com "quantos", "total", "quantidade" → operacao = "count"
-2. Perguntas com "quais", "listar" → operacao = "lista"
-3. Sempre preencher filtros corretamente
-4. Nunca inventar colunas
-5. Retornar SOMENTE JSON
+1. "quantos", "total" → operacao = "count"
+2. "quais", "listar" → operacao = "lista"
+3. Retorne apenas JSON válido
 
 Formato:
 {
   "filtro": {},
   "operacao": "count | lista",
-  "agrupar_por": "coluna ou null"
+  "agrupar_por": null
 }
 """
 
