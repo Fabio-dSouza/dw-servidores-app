@@ -65,38 +65,31 @@ def gerar_intencao(pergunta):
 
 # 🔎 EXECUTAR CONSULTA
 def executar_consulta(intencao):
-  query = supabase.schema("dw").table(TABELA).select("*").limit(10000)
+    query = supabase.schema("dw").table(TABELA).select("*").limit(10000)
 
-    # Aplicar Filtros Cruzados (Importante para não misturar dados)
-   filtros = intencao.get("filtro", {})
+    # Aplicar Filtros Cruzados
+    filtros = intencao.get("filtro", {})
+    
     if filtros:
         for campo, valor in filtros.items():
             if valor:
-                # Usamos ilike para pegar 'SECRETARIA DA FAZENDA' apenas com 'FAZENDA'
-               query = query.ilike(campo, f"%{valor}%")
+                valor = str(valor).upper()
+                query = query.ilike(campo, f"%{valor}%")
 
     dados = query.execute().data
+
     if not dados:
-        return "Nenhum registro encontrado para esses critérios."
+        return "Nenhum registro encontrado."
 
     df = pd.DataFrame(dados)
-    
-    # Garante que a coluna de soma seja numérica
-    df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors='coerce').fillna(0)
 
-    # Lógica de Soma (Onde estava o erro da Fazenda)
+    # garantir numérico
+    df["total_servidores"] = pd.to_numeric(df["total_servidores"], errors="coerce").fillna(0)
+
+    # operação soma
     if intencao.get("operacao") == "soma":
-        total_real = int(df["total_servidores"].sum())
-        return f"O total encontrado é de {total_real} servidores."
+        return int(df["total_servidores"].sum())
 
-    # Lógica de Listagem (Onde estava o erro do Planejamento)
-    if intencao.get("operacao") == "lista" and intencao.get("agrupar_por"):
-        coluna = intencao.get("agrupar_por")
-        if coluna in df.columns:
-            itens = df[coluna].unique().tolist()
-            return f"Os tipos de {coluna} encontrados são: {', '.join(map(str, itens))}"
-
-    # Se nada acima bater, retorna uma prévia dos dados
     return df.head(10).to_dict(orient="records")
 
 # 🗣️ RESPOSTA NATURAL
