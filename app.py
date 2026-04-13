@@ -13,7 +13,7 @@ supabase = create_client(
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # 👉 VIEW baseada na STG (1 linha = 1 servidor)
-TABELA = "View_completa"
+TABELA = "view_completa"
 
 # 📖 CONTEXTO PARA IA
 DICIONARIO = """
