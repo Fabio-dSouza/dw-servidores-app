@@ -68,12 +68,12 @@ def executar_consulta(intencao):
   query = supabase.schema("dw").table(TABELA).select("*").limit(10000)
 
     # Aplicar Filtros Cruzados (Importante para não misturar dados)
-    filtros = intencao.get("filtro", {})
+   filtros = intencao.get("filtro", {})
     if filtros:
         for campo, valor in filtros.items():
             if valor:
                 # Usamos ilike para pegar 'SECRETARIA DA FAZENDA' apenas com 'FAZENDA'
-                query = query.ilike(campo, f"%{valor}%")
+               query = query.ilike(campo, f"%{valor}%")
 
     dados = query.execute().data
     if not dados:
