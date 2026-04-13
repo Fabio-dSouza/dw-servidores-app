@@ -17,6 +17,12 @@ TABELA: 'dw.vw_indicadores_pessoal'
 FONTE: Todos os dados dizem respespeito aos servidores ativos e inativos do poder executivo do estado do Rio Grande do sul
 
 COLUNAS DISPONÍVEIS:
+   SITUAÇÃO: "ativos": "ATIVO".
+    "ativo": "ATIVO".
+    "inativos": "INATIVO".
+    "inativo": "INATIVO".
+    
+    COLUNAS
    - "orgao_executivo": "texto".
     -"cargo_nome": "texto".
     -"categoria": "texto".
@@ -59,7 +65,7 @@ def gerar_intencao(pergunta):
 
 # 🔎 EXECUTAR CONSULTA
 def executar_consulta(intencao):
-    query = supabase.schema("dw").table(TABELA).select("*")
+  query = supabase.schema("dw").table(TABELA).select("*").limit(10000)
 
     # Aplicar Filtros Cruzados (Importante para não misturar dados)
     filtros = intencao.get("filtro", {})
