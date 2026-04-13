@@ -91,16 +91,18 @@ def executar_consulta(intencao):
         return int(len(df))
 
     # 🧠 LISTA COM AGRUPAMENTO
-    if intencao.get("operacao") == "lista":
-        agrupar = intencao.get("agrupar_por")
+if intencao.get("operacao") == "count":
+    query = supabase.schema("dw").table(TABELA).select("*", count="exact")
 
-        if agrupar and agrupar in df.columns:
-            lista = df[agrupar].dropna().unique().tolist()
-            return lista
+    filtros = intencao.get("filtro", {})
 
-        return df.head(50).to_dict(orient="records")
+    for campo, valor in filtros.items():
+        if valor:
+            valor = str(valor).upper()
+            query = query.ilike(campo, f"%{valor}%")
 
-    return df.head(50).to_dict(orient="records")
+    res = query.execute()
+    return res.count
 
 # 🗣️ RESPOSTA NATURAL
 def gerar_resposta_final(pergunta, resultado):
