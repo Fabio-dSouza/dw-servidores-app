@@ -13,7 +13,7 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 TABELA = "dw.view_completa"
 
-# 📖 CONTEXTO PARA GERAR SQL
+# 📖 PROMPT PARA GERAR SQL (INTERNO)
 PROMPT_SQL = """
 Você é um especialista em SQL PostgreSQL.
 
@@ -21,7 +21,7 @@ Gere uma query SQL baseada na pergunta do usuário.
 
 TABELA: dw.view_completa
 
-COLUNAS DISPONÍVEIS:
+COLUNAS:
 - tipo_orgao
 - orgao
 - cargo
@@ -30,56 +30,36 @@ COLUNAS DISPONÍVEIS:
 - situacao
 
 REGRAS:
-- Para contagem → use COUNT(*)
-- Use UPPER() para comparações
-- Use ILIKE para textos
+- Para contagem → COUNT(*)
+- Use UPPER() para igualdade
+- Use ILIKE para texto parcial
 - Nunca invente colunas
-- Não explique nada
-- Retorne apenas SQL puro
-
-EXEMPLOS:
-
-Pergunta: quantos servidores ativos?
-SQL:
-SELECT COUNT(*) FROM dw.view_completa
-WHERE UPPER(situacao) = 'ATIVO';
-
-Pergunta: quantos servidores na fazenda?
-SQL:
-SELECT COUNT(*) FROM dw.view_completa
-WHERE UPPER(orgao) ILIKE '%FAZENDA%';
+- Retorne apenas SQL puro (sem explicação)
 """
 
-# 🧠 GERAR SQL
+# 🧠 GERAR SQL (OCULTO)
 def gerar_sql(pergunta):
-    prompt = f"{PROMPT_SQL}\n\nPergunta: {pergunta}"
-
     resposta = client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": f"{PROMPT_SQL}\nPergunta: {pergunta}"}]
     )
 
     sql = resposta.choices[0].message.content
-    sql = sql.replace("```sql", "").replace("```", "").strip()
-
-    return sql
+    return sql.replace("```sql", "").replace("```", "").strip()
 
 # 🔎 EXECUTAR SQL
 def executar_sql(sql):
-    try:
-        # ⚠️ necessário criar função no Supabase (explico abaixo)
-        res = supabase.rpc("execute_sql", {"query": sql}).execute()
-        return res.data
-    except Exception as e:
-        return f"Erro ao executar SQL: {str(e)}"
+    res = supabase.rpc("execute_sql", {"query": sql}).execute()
+    return res.data
 
-# 🗣️ GERAR RESPOSTA NATURAL
+# 🗣️ GERAR RESPOSTA FINAL (SEM MOSTRAR SQL)
 def gerar_resposta(pergunta, resultado):
     prompt = f"""
 Pergunta: {pergunta}
 Resultado: {resultado}
 
-Responda de forma clara e objetiva.
+Responda de forma direta, como um assistente.
+Não mencione SQL.
 """
 
     res = client.chat.completions.create(
@@ -90,7 +70,7 @@ Responda de forma clara e objetiva.
     return res.choices[0].message.content
 
 # 💬 INTERFACE
-st.title("📊 Consulta Inteligente RH-RS (SQL)")
+st.title("📊 Consulta Inteligente RH-RS")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
@@ -101,21 +81,18 @@ if pergunta:
     st.session_state.chat.append({"role": "user", "content": pergunta})
 
     try:
-        with st.spinner("Gerando SQL..."):
+        with st.spinner("Consultando base de dados..."):
 
-            sql = gerar_sql(pergunta)
+            sql = gerar_sql(pergunta)  # 🔥 oculto
 
-            # DEBUG
-            st.code(sql, language="sql")
-
-            resultado = executar_sql(sql)
+            resultado = executar_sql(sql)  # 🔥 executa direto no banco
 
             resposta = gerar_resposta(pergunta, resultado)
 
             msg = {"role": "assistant", "content": resposta}
 
-            # Se vier tabela
-            if isinstance(resultado, list):
+            # se vier tabela
+            if isinstance(resultado, list) and len(resultado) > 0:
                 msg["data"] = pd.DataFrame(resultado)
 
             st.session_state.chat.append(msg)
