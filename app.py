@@ -1,7 +1,6 @@
 import streamlit as st
 from supabase import create_client
 from groq import Groq
-import json
 import pandas as pd
 
 # 🔐 CONFIG
@@ -12,95 +11,75 @@ supabase = create_client(
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# 👉 VIEW baseada na STG (1 linha = 1 servidor)
-TABELA = "view_completa"
+TABELA = "dw.view_completa"
 
-# 📖 CONTEXTO PARA IA
-DICIONARIO = """
-Você interpreta perguntas e retorna JSON válido.
+# 📖 CONTEXTO PARA GERAR SQL
+PROMPT_SQL = """
+Você é um especialista em SQL PostgreSQL.
 
-ATENÇÃO:
-- Use SOMENTE estas colunas:
-  tipo_orgao, orgao, cargo, categoria, vinculo, situacao
+Gere uma query SQL baseada na pergunta do usuário.
 
-- Nunca invente nomes de colunas
-- Nunca use valores genéricos como "orgao"
+TABELA: dw.view_completa
 
-SINÔNIMOS:
-- "adm direta", "adm. direta" → tipo_orgao = "ADMINISTRACAO DIRETA"
-- "ativo", "ativos" → situacao = "ATIVO"
-- "inativo", "inativos" → situacao = "INATIVO"
+COLUNAS DISPONÍVEIS:
+- tipo_orgao
+- orgao
+- cargo
+- categoria
+- vinculo
+- situacao
 
 REGRAS:
-1. "quantos", "total" → operacao = "count"
-2. "quais", "listar" → operacao = "lista"
-3. Retorne apenas JSON válido
+- Para contagem → use COUNT(*)
+- Use UPPER() para comparações
+- Use ILIKE para textos
+- Nunca invente colunas
+- Não explique nada
+- Retorne apenas SQL puro
 
-Formato:
-{
-  "filtro": {},
-  "operacao": "count | lista",
-  "agrupar_por": null
-}
+EXEMPLOS:
+
+Pergunta: quantos servidores ativos?
+SQL:
+SELECT COUNT(*) FROM dw.view_completa
+WHERE UPPER(situacao) = 'ATIVO';
+
+Pergunta: quantos servidores na fazenda?
+SQL:
+SELECT COUNT(*) FROM dw.view_completa
+WHERE UPPER(orgao) ILIKE '%FAZENDA%';
 """
 
-# 🎯 GERAR INTENÇÃO
-def gerar_intencao(pergunta):
-    prompt = f"{DICIONARIO}\n\nPergunta: {pergunta}"
+# 🧠 GERAR SQL
+def gerar_sql(pergunta):
+    prompt = f"{PROMPT_SQL}\n\nPergunta: {pergunta}"
 
     resposta = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
 
-    conteudo = resposta.choices[0].message.content
-    conteudo = conteudo.replace("```json", "").replace("```", "").strip()
+    sql = resposta.choices[0].message.content
+    sql = sql.replace("```sql", "").replace("```", "").strip()
 
+    return sql
+
+# 🔎 EXECUTAR SQL
+def executar_sql(sql):
     try:
-        obj = json.loads(conteudo)
-        return obj if isinstance(obj, dict) else obj[0]
-    except:
-        return {"filtro": {}, "operacao": "lista", "agrupar_por": None}
+        # ⚠️ necessário criar função no Supabase (explico abaixo)
+        res = supabase.rpc("execute_sql", {"query": sql}).execute()
+        return res.data
+    except Exception as e:
+        return f"Erro ao executar SQL: {str(e)}"
 
-# 🔎 CONSULTA
-def executar_consulta(intencao):
-
-    filtros = intencao.get("filtro", {})
-
-    # 🧠 COUNT (correto)
-    if intencao.get("operacao") == "count":
-        query = supabase.schema("dw").table(TABELA).select("*", count="exact")
-
-        for campo, valor in filtros.items():
-            if valor:
-                valor = str(valor).upper()
-                query = query.ilike(campo, f"%{valor}%")
-
-        res = query.execute()
-        return res.count  # ✅ dentro da função
-
-    # 🔎 LISTA
-    query = supabase.schema("dw").table(TABELA).select("*").limit(50)
-
-    for campo, valor in filtros.items():
-        if valor:
-            valor = str(valor).upper()
-            query = query.ilike(campo, f"%{valor}%")
-
-    dados = query.execute().data
-
-    if not dados:
-        return "Nenhum registro encontrado."
-
-    return dados
-
-# 🗣️ RESPOSTA NATURAL
-def gerar_resposta_final(pergunta, resultado):
+# 🗣️ GERAR RESPOSTA NATURAL
+def gerar_resposta(pergunta, resultado):
     prompt = f"""
 Pergunta: {pergunta}
 Resultado: {resultado}
 
-Responda de forma clara, objetiva e amigável.
+Responda de forma clara e objetiva.
 """
 
     res = client.chat.completions.create(
@@ -111,29 +90,32 @@ Responda de forma clara, objetiva e amigável.
     return res.choices[0].message.content
 
 # 💬 INTERFACE
-st.title("📊 Consulta Inteligente RH-RS")
+st.title("📊 Consulta Inteligente RH-RS (SQL)")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-pergunta = st.chat_input("Ex: quantos servidores ativos na fazenda?")
+pergunta = st.chat_input("Ex: quantos servidores ativos na adm direta?")
 
 if pergunta:
     st.session_state.chat.append({"role": "user", "content": pergunta})
 
     try:
-        with st.spinner("Analisando..."):
-            intencao = gerar_intencao(pergunta)
+        with st.spinner("Gerando SQL..."):
 
-            # DEBUG (opcional)
-            st.write("🔍 Intenção:", intencao)
+            sql = gerar_sql(pergunta)
 
-            resultado = executar_consulta(intencao)
-            resposta = gerar_resposta_final(pergunta, resultado)
+            # DEBUG
+            st.code(sql, language="sql")
+
+            resultado = executar_sql(sql)
+
+            resposta = gerar_resposta(pergunta, resultado)
 
             msg = {"role": "assistant", "content": resposta}
 
-            if isinstance(resultado, list) and isinstance(resultado[0], dict):
+            # Se vier tabela
+            if isinstance(resultado, list):
                 msg["data"] = pd.DataFrame(resultado)
 
             st.session_state.chat.append(msg)
