@@ -64,45 +64,35 @@ def gerar_intencao(pergunta):
 
 # 🔎 CONSULTA
 def executar_consulta(intencao):
-    query = supabase.schema("dw").table(TABELA).select("*").limit(50000)
 
     filtros = intencao.get("filtro", {})
 
-    if filtros:
+    # 🧠 COUNT (correto)
+    if intencao.get("operacao") == "count":
+        query = supabase.schema("dw").table(TABELA).select("*", count="exact")
+
         for campo, valor in filtros.items():
             if valor:
                 valor = str(valor).upper()
                 query = query.ilike(campo, f"%{valor}%")
 
-    dados = query.execute().data
+        res = query.execute()
+        return res.count  # ✅ dentro da função
 
-    if not dados:
-        return "Nenhum registro encontrado."
-
-    df = pd.DataFrame(dados)
-
-    # 🔥 padronização
-    for col in ["orgao", "cargo", "categoria", "vinculo", "situacao"]:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.upper()
-
-    # 🧠 COUNT (principal mudança)
-    if intencao.get("operacao") == "count":
-        return int(len(df))
-
-    # 🧠 LISTA COM AGRUPAMENTO
-if intencao.get("operacao") == "count":
-    query = supabase.schema("dw").table(TABELA).select("*", count="exact")
-
-    filtros = intencao.get("filtro", {})
+    # 🔎 LISTA
+    query = supabase.schema("dw").table(TABELA).select("*").limit(50)
 
     for campo, valor in filtros.items():
         if valor:
             valor = str(valor).upper()
             query = query.ilike(campo, f"%{valor}%")
 
-    res = query.execute()
-    return res.count
+    dados = query.execute().data
+
+    if not dados:
+        return "Nenhum registro encontrado."
+
+    return dados
 
 # 🗣️ RESPOSTA NATURAL
 def gerar_resposta_final(pergunta, resultado):
