@@ -90,7 +90,7 @@ def executar_consulta(intencao):
     if intencao.get("operacao") == "soma":
         return int(df["total_servidores"].sum())
 
-    return df.head(10).to_dict(orient="records")
+    return df.head(3000).to_dict(orient="records")
 
 # 🗣️ RESPOSTA NATURAL
 def gerar_resposta_final(pergunta, resultado):
