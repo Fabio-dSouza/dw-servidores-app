@@ -184,9 +184,12 @@ if pergunta:
                 key="sql_editado"
             )
 
-            if st.button("Executar consulta"):
+            executar = st.button("Executar consulta")
+
+                if executar:
 
                 resultado = executar_sql(sql_editado)
+                st.write("📊 Resultado bruto:", resultado)  # 👈 DEBUG VISÍVEL
 
                 resposta = gerar_resposta(pergunta, resultado)
 
