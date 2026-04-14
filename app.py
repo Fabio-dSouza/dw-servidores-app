@@ -82,11 +82,11 @@ Pergunta: {pergunta}
         messages=[{"role": "user", "content": prompt}]
     )
 
-import re
+    import re
 
-    conteudo = resposta.choices[0].message.content
+        conteudo = resposta.choices[0].message.content
 
-    # 🔥 extrair só o SELECT
+        # 🔥 extrair só o SELECT
     match = re.search(r"(SELECT[\s\S]+?)(?:\n\n|$)", conteudo, re.IGNORECASE)
 
     if match:
