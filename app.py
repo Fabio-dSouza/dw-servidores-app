@@ -183,7 +183,7 @@ if pergunta:
 
             executar = st.button("Executar consulta")
 
-                if executar:
+            if executar:
 
                     resultado = executar_sql(sql_editado)
                     st.write("📊 Resultado bruto:", resultado)  # 👈 DEBUG VISÍVEL
