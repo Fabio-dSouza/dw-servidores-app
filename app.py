@@ -168,34 +168,23 @@ if pergunta:
     try:
         with st.spinner("Consultando..."):
 
-# salva SQL na sessão
-if "sql" not in st.session_state:
-    st.session_state.sql = ""
+            # ✅ TUDO AQUI DENTRO PRECISA ESTAR INDENTADO
 
-if pergunta:
-    st.session_state.sql = gerar_sql(pergunta)
+            if "sql" not in st.session_state:
+                st.session_state.sql = ""
 
-st.write("🔍 SQL GERADO (IA):", st.session_state.sql)
+            st.session_state.sql = gerar_sql(pergunta)
 
-sql_editado = st.text_area(
-    "✏️ Ajuste o SQL se necessário:",
-    value=st.session_state.sql,
-    height=150,
-    key="sql_editado"
-)
+            st.write("🔍 SQL GERADO (IA):", st.session_state.sql)
 
-if st.button("Executar consulta"):
+            sql_editado = st.text_area(
+                "✏️ Ajuste o SQL se necessário:",
+                value=st.session_state.sql,
+                height=150,
+                key="sql_editado"
+            )
 
-    resultado = executar_sql(sql_editado)
-
-    resposta = gerar_resposta(pergunta, resultado)
-
-    msg = {"role": "assistant", "content": resposta}
-
-    if isinstance(resultado, list):
-        msg["data"] = pd.DataFrame(resultado)
-
-    st.session_state.chat.append(msg)
+            if st.button("Executar consulta"):
 
                 resultado = executar_sql(sql_editado)
 
