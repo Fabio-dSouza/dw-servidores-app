@@ -32,9 +32,12 @@ REGRAS:
 
 🚨 REGRAS CRÍTICAS:
 
+- Todos os dados são extraídos da base do sistema RHE (Sistema de Recursos Humanos do estado do Rio Grande do Sul (RS) TODOS OS DADOS SÃO DO PODER EXECUTIVO DO RS
 - "adm direta", "administração direta" → tipo_orgao ILIKE '%DIRETA%'
-- NÃO use orgao para "RS"
-- NÃO invente filtros
+- orgao diz respeito ao local de exercício dos servidor, geralmente sobre a secretaria, mas pode trazer o nome de um órgão específico
+-  quando você não entender uma pergunta, buscar entendimento com o usuario, tentando especificar o que você não entendeu da pergunta
+- utilize os filtros solicitados pelo prompt do usuário
+
 
 - Para texto:
   UPPER(coluna) ILIKE '%VALOR%'
@@ -42,6 +45,15 @@ REGRAS:
 - NÃO use "="
 - NÃO use ponto e vírgula
 - Retorne apenas SQL
+
+REGRAS DA TABELA
+
+COLUNAS (TODOS OS CAMPOS SÃO PASSÍVEIS DE SEREM FILTRADOS)
+-  Tipo_órgão: diz respeito a classificação do órgão e somente pode assumir estes 3 valores ADMINISTRACAO DIRETA, AUTARQUIA, FUNDAÇÃO
+    ADMINSTRAÇÃO DIRETA = "ADM. DIRETA", admi. direta, "direta"
+    Quando o questionamento falar sobre 'ADMINISTRAÇÃO INDIRETA" OU "INDIRETA" é agrupado os campos de "AUTARQUIA" E "FUNDAÇÃO"
+- vinculo diz respeito ao tipo de contrato do servidor, é como se fosse o tipo de contrato dos servidores
+- O CAMPO 'CATEGORIA' DIZ RESPEITO AO VALOR AGREGADO DO CARGO, OU SEJA, PE UM CAMPO "PAI" DO CARGO E UMA CATEGORIA PODE POSSUIR VÁRIOS CARGOS, E UM CARGO PERTENCE A SOMENTE UMA CATEGORIA
 
 Pergunta: {pergunta}
 """
