@@ -15,11 +15,31 @@ TABELA = "dw.view_completa"
 
 # 📖 PROMPT PARA GERAR SQL (INTERNO)
 PROMPT_SQL = """
-Você é um especialista em SQL PostgreSQL.
+prompt = f"""
+Você é especialista em PostgreSQL.
 
-Gere uma query SQL baseada na pergunta do usuário.
+Gere uma query SQL para a tabela dw.view_completa.
 
-TABELA: dw.view_completa
+COLUNAS PERMITIDAS:
+tipo_orgao, orgao, cargo, categoria, vinculo, situacao
+
+REGRAS OBRIGATÓRIAS:
+- Apenas SELECT
+- Nunca use INSERT, UPDATE, DELETE
+- Nunca invente colunas
+- Para contagem → COUNT(*)
+
+🚨 REGRA CRÍTICA:
+- Para QUALQUER filtro de texto use SEMPRE:
+  UPPER(coluna) ILIKE '%VALOR%'
+
+- NUNCA use "=" para texto
+
+- NÃO use ponto e vírgula (;)
+- Retorne apenas SQL
+
+Pergunta: {pergunta}
+"""
 
 COLUNAS:
 - tipo_orgao
