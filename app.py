@@ -105,15 +105,30 @@ def validar_sql(sql):
 def executar_sql(sql):
     sql = validar_sql(sql)
 
-    res = supabase.rpc("execute_sql", {"query": sql}).execute()
+    # 🔍 detectar COUNT
+    is_count = "COUNT" in sql.upper()
 
-    if res.data is None:
-        return "Nenhum resultado encontrado."
+    query = supabase.schema("dw").table("view_completa").select("*", count="exact")
 
-    # 🎯 tratar COUNT
-    if isinstance(res.data, list) and len(res.data) > 0:
-        if "count" in res.data[0]:
-            return res.data[0]["count"]
+    # 🔥 aplicar filtros simples (ILIKE)
+    if "WHERE" in sql.upper():
+        where = sql.upper().split("WHERE")[1]
+
+        condicoes = where.split("AND")
+
+        for cond in condicoes:
+            if "ILIKE" in cond:
+                partes = cond.split("ILIKE")
+                coluna = partes[0].strip().lower()
+                valor = partes[1].replace("'", "").replace("%", "").strip()
+
+                query = query.ilike(coluna, f"%{valor}%")
+
+    res = query.execute()
+
+    # 🎯 COUNT correto
+    if is_count:
+        return res.count
 
     return res.data
 
