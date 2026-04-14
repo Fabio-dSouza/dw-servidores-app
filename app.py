@@ -146,39 +146,28 @@ if pergunta:
     try:
         with st.spinner("Consultando..."):
 
-sql_gerado = gerar_sql(pergunta)
+            sql_gerado = gerar_sql(pergunta)
 
-st.write("🔍 SQL GERADO (IA):", sql_gerado)
+            st.write("🔍 SQL GERADO (IA):", sql_gerado)
 
-# 👇 CAMPO EDITÁVEL
-sql_editado = st.text_area(
-    "✏️ Ajuste o SQL se necessário:",
-    value=sql_gerado,
-    height=150
-)
+            sql_editado = st.text_area(
+                "✏️ Ajuste o SQL se necessário:",
+                value=sql_gerado,
+                height=150
+            )
 
-# 👇 BOTÃO PARA EXECUTAR
-if st.button("Executar consulta"):
+            if st.button("Executar consulta"):
 
-    resultado = executar_sql(sql_editado)
+                resultado = executar_sql(sql_editado)
 
-    resposta = gerar_resposta(pergunta, resultado)
+                resposta = gerar_resposta(pergunta, resultado)
 
-    msg = {"role": "assistant", "content": resposta}
+                msg = {"role": "assistant", "content": resposta}
 
-    if isinstance(resultado, list):
-        msg["data"] = pd.DataFrame(resultado)
+                if isinstance(resultado, list):
+                    msg["data"] = pd.DataFrame(resultado)
 
-    st.session_state.chat.append(msg)
-
-            resposta = gerar_resposta(pergunta, resultado)
-
-            msg = {"role": "assistant", "content": resposta}
-
-            if isinstance(resultado, list):
-                msg["data"] = pd.DataFrame(resultado)
-
-            st.session_state.chat.append(msg)
+                st.session_state.chat.append(msg)
 
     except Exception as e:
         st.error(f"Erro: {str(e)}")
