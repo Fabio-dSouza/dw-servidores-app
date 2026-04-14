@@ -47,6 +47,16 @@ RESPOSTA (QUERY):SELECT COUNT(*)  FROM dw.view_completa
                  and tipo_orgao ilike '%DIRETA';
 resposta para o usuário: "Existem 122.569 servidores ativos na administração direta no estado do Rio Grande do Sul."
 
+Exemplo: quantos servidores ativos que possuem o cargo APPGG?
+resposta (query):   SELECT COUNT(*)
+                    FROM dw.view_completa
+                    WHERE situacao ILIKE 'ATIVO'
+                    AND tipo_orgao ILIKE '%DIRETA%'
+                    AND cargo ILIKE 'APPGG%'
+Essa query conta a quantidade de servidores ativos na Administração Direta que possuem o cargo com o nome a partir de "APPGG".
+resposta para o usuário: "Existem 1.897 servidores ativos no cargo de APPGG no estado do Rio Grande do Sul."
+
+
 
 - Para texto:
   UPPER(coluna) ILIKE '%VALOR%'
