@@ -146,11 +146,30 @@ if pergunta:
     try:
         with st.spinner("Consultando..."):
 
-            sql = gerar_sql(pergunta)
+sql_gerado = gerar_sql(pergunta)
 
-            st.write("🔍 SQL GERADO:", sql)  # 👈 DEBUG
+st.write("🔍 SQL GERADO (IA):", sql_gerado)
 
-            resultado = executar_sql(sql)
+# 👇 CAMPO EDITÁVEL
+sql_editado = st.text_area(
+    "✏️ Ajuste o SQL se necessário:",
+    value=sql_gerado,
+    height=150
+)
+
+# 👇 BOTÃO PARA EXECUTAR
+if st.button("Executar consulta"):
+
+    resultado = executar_sql(sql_editado)
+
+    resposta = gerar_resposta(pergunta, resultado)
+
+    msg = {"role": "assistant", "content": resposta}
+
+    if isinstance(resultado, list):
+        msg["data"] = pd.DataFrame(resultado)
+
+    st.session_state.chat.append(msg)
 
             resposta = gerar_resposta(pergunta, resultado)
 
