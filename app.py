@@ -37,6 +37,8 @@ REGRAS:
 - orgao diz respeito ao local de exercício dos servidor, geralmente sobre a secretaria, mas pode trazer o nome de um órgão específico
 -  quando você não entender uma pergunta, buscar entendimento com o usuario, tentando especificar o que você não entendeu da pergunta
 - utilize os filtros solicitados pelo prompt do usuário
+- cada linha da tabela significa um registro, ou seja, um servidor na base e eles podem possuir variados campos, todos passíveis de filtro;
+- quando o usuário solicitar quantidades ou número, em primeiro lugar, execute uma contagem das linhas com os filtros solicitados
 
 
 - Para texto:
