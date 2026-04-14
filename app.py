@@ -185,17 +185,17 @@ if pergunta:
 
                 if executar:
 
-                resultado = executar_sql(sql_editado)
-                st.write("📊 Resultado bruto:", resultado)  # 👈 DEBUG VISÍVEL
+                    resultado = executar_sql(sql_editado)
+                    st.write("📊 Resultado bruto:", resultado)  # 👈 DEBUG VISÍVEL
 
-                resposta = gerar_resposta(pergunta, resultado)
+                    resposta = gerar_resposta(pergunta, resultado)
 
-                msg = {"role": "assistant", "content": resposta}
+                    msg = {"role": "assistant", "content": resposta}
 
                 if isinstance(resultado, list):
                     msg["data"] = pd.DataFrame(resultado)
 
-                st.session_state.chat.append(msg)
+                    st.session_state.chat.append(msg)
 
     except Exception as e:
         st.error(f"Erro: {str(e)}")
