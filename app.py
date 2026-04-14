@@ -81,10 +81,10 @@ Pergunta: {pergunta}
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
+    conteudo = resposta.choices[0].message.content
 
     import re
 
-        conteudo = resposta.choices[0].message.content
 
         # 🔥 extrair só o SELECT
     match = re.search(r"(SELECT[\s\S]+?)(?:\n\n|$)", conteudo, re.IGNORECASE)
