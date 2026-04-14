@@ -40,6 +40,13 @@ REGRAS:
 - cada linha da tabela significa um registro, ou seja, um servidor na base e eles podem possuir variados campos, todos passíveis de filtro;
 - quando o usuário solicitar quantidades ou número, em primeiro lugar, execute uma contagem das linhas com os filtros solicitados
 
+EXEMPLO:    
+PERGUNTA: Quantos servidores ativos existem na Administração Direta?
+RESPOSTA (QUERY):SELECT COUNT(*)  FROM dw.view_completa
+                 WHERE situacao ilike 'ATIVO'
+                 and tipo_orgao ilike '%DIRETA';
+resposta para o usuário: "Existem 122.569 servidores ativos na administração direta no estado do Rio Grande do Sul."
+
 
 - Para texto:
   UPPER(coluna) ILIKE '%VALOR%'
