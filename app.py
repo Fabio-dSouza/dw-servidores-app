@@ -126,11 +126,8 @@ def executar_sql(sql):
 
     res = query.execute()
 
-    # 🎯 COUNT correto
-    if is_count:
-        return res.count
-
-    return res.data
+    if not res.data and res.count is None:
+    return "Nenhum resultado encontrado."
 
 # 🗣️ RESPOSTA
 def gerar_resposta(pergunta, resultado):
