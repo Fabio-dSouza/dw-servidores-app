@@ -72,8 +72,18 @@ Pergunta: {pergunta}
         messages=[{"role": "user", "content": prompt}]
     )
 
-    sql = resposta.choices[0].message.content
+    import re
 
+    conteudo = resposta.choices[0].message.content
+
+    # 🔥 extrair somente o SELECT até o final da query
+    match = re.search(r"(SELECT[\s\S]+)", conteudo, re.IGNORECASE)
+
+    if match:
+        sql = match.group(1)
+    else:
+        raise Exception("Não foi possível extrair SQL válido da resposta da IA")
+        
     sql = (
         sql.replace("```sql", "")
            .replace("```", "")
