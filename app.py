@@ -82,17 +82,17 @@ Pergunta: {pergunta}
         messages=[{"role": "user", "content": prompt}]
     )
 
-    import re
+import re
 
-    conteudo = resposta.choices[0].message.content
+conteudo = resposta.choices[0].message.content
 
-    # 🔥 extrair somente o SELECT até o final da query
-    match = re.search(r"(SELECT[\s\S]+)", conteudo, re.IGNORECASE)
+# 🔥 pega apenas a primeira query SELECT até antes de texto extra
+match = re.search(r"(SELECT[\s\S]+?)(?:\n\n|$)", conteudo, re.IGNORECASE)
 
-    if match:
-        sql = match.group(1)
-    else:
-        raise Exception("Não foi possível extrair SQL válido da resposta da IA")
+if match:
+    sql = match.group(1)
+else:
+    raise Exception("Não foi possível extrair SQL válido da resposta da IA")
         
     sql = (
         sql.replace("```sql", "")
