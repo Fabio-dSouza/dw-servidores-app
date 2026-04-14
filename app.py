@@ -84,16 +84,17 @@ Pergunta: {pergunta}
 
 import re
 
-conteudo = resposta.choices[0].message.content
+    conteudo = resposta.choices[0].message.content
 
-# 🔥 pega apenas a primeira query SELECT até antes de texto extra
-match = re.search(r"(SELECT[\s\S]+?)(?:\n\n|$)", conteudo, re.IGNORECASE)
+    # 🔥 extrair só o SELECT
+    match = re.search(r"(SELECT[\s\S]+?)(?:\n\n|$)", conteudo, re.IGNORECASE)
 
-if match:
-    sql = match.group(1)
-else:
-    raise Exception("Não foi possível extrair SQL válido da resposta da IA")
-        
+    if match:
+        sql = match.group(1)
+    else:
+        raise Exception("Não foi possível extrair SQL válido da resposta da IA")
+
+    # limpar
     sql = (
         sql.replace("```sql", "")
            .replace("```", "")
@@ -101,10 +102,7 @@ else:
            .strip()
     )
 
-    # 🔥 correção automática
-    sql = sql.replace(" = ", " ILIKE ")
-
-    return sql
+    return sql 
 
 # 🛡️ VALIDAR
 def validar_sql(sql):
