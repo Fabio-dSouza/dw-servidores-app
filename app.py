@@ -164,19 +164,22 @@ if pergunta:
     try:
         with st.spinner("Consultando..."):
 
-            # gerar SQL
+            # 👇 SALVA PERGUNTA
+            st.session_state.chat.append({
+                "role": "user",
+                "content": pergunta
+            })
+
             sql_gerado = gerar_sql(pergunta)
 
             st.write("🔍 SQL GERADO (IA):", sql_gerado)
 
-            # permitir edição (opcional)
             sql_editado = st.text_area(
                 "✏️ Ajuste o SQL se necessário:",
                 value=sql_gerado,
                 height=150
             )
 
-            # 🔥 EXECUTA DIRETO (SEM BOTÃO)
             resultado = executar_sql(sql_editado)
 
             st.write("📊 Resultado bruto:", resultado)
