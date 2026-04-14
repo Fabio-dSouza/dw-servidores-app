@@ -160,46 +160,39 @@ if "chat" not in st.session_state:
     st.session_state.chat = []
 
 pergunta = st.chat_input("Ex: quantos servidores ativos na adm direta?")
-
 if pergunta:
     try:
         with st.spinner("Consultando..."):
 
-            # ✅ TUDO AQUI DENTRO PRECISA ESTAR INDENTADO
+            # gerar SQL
+            sql_gerado = gerar_sql(pergunta)
 
-            if "sql" not in st.session_state:
-                st.session_state.sql = ""
+            st.write("🔍 SQL GERADO (IA):", sql_gerado)
 
-            st.session_state.sql = gerar_sql(pergunta)
-
-            st.write("🔍 SQL GERADO (IA):", st.session_state.sql)
-
+            # permitir edição (opcional)
             sql_editado = st.text_area(
                 "✏️ Ajuste o SQL se necessário:",
-                value=st.session_state.sql,
-                height=150,
-                key="sql_editado"
+                value=sql_gerado,
+                height=150
             )
 
-            executar = st.button("Executar consulta")
+            # 🔥 EXECUTA DIRETO (SEM BOTÃO)
+            resultado = executar_sql(sql_editado)
 
-            if executar:
+            st.write("📊 Resultado bruto:", resultado)
 
-                    resultado = executar_sql(sql_editado)
-                    st.write("📊 Resultado bruto:", resultado)  # 👈 DEBUG VISÍVEL
+            resposta = gerar_resposta(pergunta, resultado)
 
-                    resposta = gerar_resposta(pergunta, resultado)
-
-                    msg = {"role": "assistant", "content": resposta}
+            msg = {"role": "assistant", "content": resposta}
 
             if isinstance(resultado, list):
-                    msg["data"] = pd.DataFrame(resultado)
+                msg["data"] = pd.DataFrame(resultado)
 
-                    st.session_state.chat.append(msg)
+            st.session_state.chat.append(msg)
 
     except Exception as e:
         st.error(f"Erro: {str(e)}")
-
+        
 # 🧾 CHAT
 for msg in st.session_state.chat:
     with st.chat_message(msg["role"]):
