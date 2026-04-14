@@ -24,16 +24,22 @@ COLUNAS PERMITIDAS:
 tipo_orgao, orgao, cargo, categoria, vinculo, situacao
 
 REGRAS:
+
 - Apenas SELECT
 - Nunca use INSERT, UPDATE, DELETE
 - Nunca invente colunas
 - Para contagem → COUNT(*)
 
-🚨 REGRA CRÍTICA:
-- Para texto use SEMPRE:
+🚨 REGRAS CRÍTICAS:
+
+- "adm direta", "administração direta" → tipo_orgao ILIKE '%DIRETA%'
+- NÃO use orgao para "RS"
+- NÃO invente filtros
+
+- Para texto:
   UPPER(coluna) ILIKE '%VALOR%'
 
-- NUNCA use "="
+- NÃO use "="
 - NÃO use ponto e vírgula
 - Retorne apenas SQL
 
@@ -92,11 +98,19 @@ def executar_sql(sql):
 
 # 🗣️ RESPOSTA
 def gerar_resposta(pergunta, resultado):
+
+    # 🚨 se for número, responde direto
+    if isinstance(resultado, int):
+        return f"O total é de {resultado} servidores."
+
     prompt = f"""
 Pergunta: {pergunta}
 Resultado: {resultado}
 
-Responda de forma direta e clara.
+Responda:
+- usando APENAS o resultado
+- NÃO invente desculpas
+- NÃO diga que não tem acesso a dados
 """
 
     res = client.chat.completions.create(
