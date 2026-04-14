@@ -192,7 +192,7 @@ if pergunta:
 
                     msg = {"role": "assistant", "content": resposta}
 
-                if isinstance(resultado, list):
+            if isinstance(resultado, list):
                     msg["data"] = pd.DataFrame(resultado)
 
                     st.session_state.chat.append(msg)
