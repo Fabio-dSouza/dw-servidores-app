@@ -13,51 +13,7 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 TABELA = "dw.view_completa"
 
-# 📖 PROMPT PARA GERAR SQL (INTERNO)
-PROMPT_SQL = """
-prompt = f"""
-Você é especialista em PostgreSQL.
-
-Gere uma query SQL para a tabela dw.view_completa.
-
-COLUNAS PERMITIDAS:
-tipo_orgao, orgao, cargo, categoria, vinculo, situacao
-
-REGRAS OBRIGATÓRIAS:
-- Apenas SELECT
-- Nunca use INSERT, UPDATE, DELETE
-- Nunca invente colunas
-- Para contagem → COUNT(*)
-
-🚨 REGRA CRÍTICA:
-- Para QUALQUER filtro de texto use SEMPRE:
-  UPPER(coluna) ILIKE '%VALOR%'
-
-- NUNCA use "=" para texto
-
-- NÃO use ponto e vírgula (;)
-- Retorne apenas SQL
-
-Pergunta: {pergunta}
-"""
-
-COLUNAS:
-- tipo_orgao
-- orgao
-- cargo
-- categoria
-- vinculo
-- situacao
-
-REGRAS:
-- Para contagem → COUNT(*)
-- Use UPPER() para igualdade
-- Use ILIKE para texto parcial
-- Nunca invente colunas
-- Retorne apenas SQL puro (sem explicação)
-"""
-
-# 🧠 GERAR SQL (OCULTO)
+# 🧠 GERAR SQL
 def gerar_sql(pergunta):
     prompt = f"""
 Você é especialista em PostgreSQL.
@@ -72,9 +28,13 @@ REGRAS:
 - Nunca use INSERT, UPDATE, DELETE
 - Nunca invente colunas
 - Para contagem → COUNT(*)
-- Use UPPER() para igualdade
-- Use ILIKE para texto
-- NÃO use ponto e vírgula (;)
+
+🚨 REGRA CRÍTICA:
+- Para texto use SEMPRE:
+  UPPER(coluna) ILIKE '%VALOR%'
+
+- NUNCA use "="
+- NÃO use ponto e vírgula
 - Retorne apenas SQL
 
 Pergunta: {pergunta}
@@ -87,37 +47,34 @@ Pergunta: {pergunta}
 
     sql = resposta.choices[0].message.content
 
-    return (
+    sql = (
         sql.replace("```sql", "")
            .replace("```", "")
            .replace(";", "")
            .strip()
     )
+
+    # 🔥 correção automática
+    sql = sql.replace(" = ", " ILIKE ")
+
+    return sql
+
+# 🛡️ VALIDAR
 def validar_sql(sql):
     sql_upper = sql.upper()
 
-    # 🚨 bloquear comandos perigosos
     proibidos = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER"]
 
     for p in proibidos:
         if p in sql_upper:
             raise Exception("Comando SQL não permitido")
 
-    # 🚨 garantir SELECT
     if not sql_upper.startswith("SELECT"):
-        raise Exception("Apenas SELECT é permitido")
-
-    # 🚨 colunas válidas
-    colunas_validas = ["TIPO_ORGAO", "ORGAO", "CARGO", "CATEGORIA", "VINCULO", "SITUACAO"]
-
-    for palavra in sql_upper.split():
-        if "." not in palavra and palavra.isalpha():
-            if palavra not in colunas_validas and palavra not in ["SELECT","FROM","WHERE","AND","OR","COUNT","ILIKE","UPPER","AS"]:
-                # não trava tudo, mas reduz erro
-                pass
+        raise Exception("Apenas SELECT permitido")
 
     return sql
 
+# 🔎 EXECUTAR
 def executar_sql(sql):
     sql = validar_sql(sql)
 
@@ -126,20 +83,20 @@ def executar_sql(sql):
     if res.data is None:
         return "Nenhum resultado encontrado."
 
+    # 🎯 tratar COUNT
+    if isinstance(res.data, list) and len(res.data) > 0:
+        if "count" in res.data[0]:
+            return res.data[0]["count"]
+
     return res.data
 
-# 🗣️ GERAR RESPOSTA FINAL (SEM MOSTRAR SQL)
+# 🗣️ RESPOSTA
 def gerar_resposta(pergunta, resultado):
     prompt = f"""
-Usuário perguntou: {pergunta}
+Pergunta: {pergunta}
+Resultado: {resultado}
 
-Resultado do banco:
-{resultado}
-
-Responda:
-- direto
-- sem mencionar SQL
-- com número correto
+Responda de forma direta e clara.
 """
 
     res = client.chat.completions.create(
@@ -149,18 +106,21 @@ Responda:
 
     return res.choices[0].message.content
 
-# 💬 INTERFACE
+# 💬 UI
 st.title("📊 Consulta Inteligente RH-RS")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
 pergunta = st.chat_input("Ex: quantos servidores ativos na adm direta?")
+
 if pergunta:
     try:
-        with st.spinner("Consultando base..."):
+        with st.spinner("Consultando..."):
 
             sql = gerar_sql(pergunta)
+
+            st.write("🔍 SQL GERADO:", sql)  # 👈 DEBUG
 
             resultado = executar_sql(sql)
 
@@ -175,6 +135,7 @@ if pergunta:
 
     except Exception as e:
         st.error(f"Erro: {str(e)}")
+
 # 🧾 CHAT
 for msg in st.session_state.chat:
     with st.chat_message(msg["role"]):
