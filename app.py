@@ -92,7 +92,7 @@ Pergunta: {pergunta}
 
 import re
 
-    def extrair_sql(conteudo):
+def extrair_sql(conteudo):
     # pega tudo entre SELECT e fim
         matches = re.findall(r"SELECT[\s\S]*", conteudo, re.IGNORECASE)
 
