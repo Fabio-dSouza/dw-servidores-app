@@ -24,6 +24,13 @@ COLUNAS PERMITIDAS:
 tipo_orgao, orgao, cargo, categoria, vinculo, situacao
 
 REGRAS:
+FORMATO DE RESPOSTA (OBRIGATÓRIO):
+
+- Retorne SOMENTE UMA LINHA com SQL
+- NÃO explique
+- NÃO escreva texto antes ou depois
+- NÃO use quebras de linha
+- NÃO escreva "resposta", "query", ou qualquer explicação
 
 - Apenas SELECT
 - Nunca use INSERT, UPDATE, DELETE
@@ -83,26 +90,29 @@ Pergunta: {pergunta}
     )
     conteudo = resposta.choices[0].message.content
 
-    import re
+import re
 
+    def extrair_sql(conteudo):
+    # pega tudo entre SELECT e fim
+        matches = re.findall(r"SELECT[\s\S]*", conteudo, re.IGNORECASE)
 
-        # 🔥 extrair só o SELECT
-    match = re.search(r"(SELECT[\s\S]+?)(?:\n\n|$)", conteudo, re.IGNORECASE)
+        if not matches:
+            raise Exception("Nenhum SELECT encontrado")
 
-    if match:
-        sql = match.group(1)
-    else:
-        raise Exception("Não foi possível extrair SQL válido da resposta da IA")
+        sql = matches[0]
 
-    # limpar
-    sql = (
-        sql.replace("```sql", "")
-           .replace("```", "")
-           .replace(";", "")
-           .strip()
+    # corta qualquer coisa depois de uma possível explicação
+        sql = sql.split("\n")[0] if "\n" in sql else sql
+
+    # limpeza pesada
+        sql = (
+            sql.replace("```sql", "")
+               .replace("```", "")
+               .replace(";", "")
+               .strip()
     )
 
-    return sql 
+        return sql
 
 # 🛡️ VALIDAR
 def validar_sql(sql):
@@ -123,10 +133,10 @@ def validar_sql(sql):
 def executar_sql(sql):
     sql = validar_sql(sql)
 
-    res = supabase.rpc("execute_sql", {"query": sql}).execute()
+    # 🔒 valida agregação
+    validar_group_by(sql)
 
-    if not res.data:
-        return "Nenhum resultado encontrado."
+    res = supabase.rpc("execute_sql", {"query": sql}).execute()
 
     # 🎯 se for COUNT
     if isinstance(res.data, list) and len(res.data) > 0:
@@ -134,9 +144,6 @@ def executar_sql(sql):
             return res.data[0]["count"]
 
     return res.data
-
-    if not res.data and res.count is None:
-        return "Nenhum resultado encontrado."
 
 # 🗣️ RESPOSTA
 def gerar_resposta(pergunta, resultado):
