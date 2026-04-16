@@ -37,6 +37,10 @@ FORMATO DE RESPOSTA (OBRIGATÓRIO):
 - Nunca invente colunas
 - Para contagem → COUNT(*)
 
+Se a pergunta for incompleta ou ambígua:
+- NÃO gere SQL
+- Responda: "PERGUNTA_INSUFICIENTE"
+
 🚨 REGRAS CRÍTICAS:
 
 - Todos os dados são extraídos da base do sistema RHE (Sistema de Recursos Humanos do estado do Rio Grande do Sul (RS) TODOS OS DADOS SÃO DO PODER EXECUTIVO DO RS
@@ -88,31 +92,38 @@ Pergunta: {pergunta}
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
-    conteudo = resposta.choices[0].message.content
+  conteudo = resposta.choices[0].message.content
+
+if "PERGUNTA_INSUFICIENTE" in conteudo:
+    raise Exception("Pergunta incompleta. Seja mais específico.")
+
+st.write("🧠 RESPOSTA BRUTA IA:", conteudo)  # 👈 ESSENCIAL
+
+sql = extrair_sql(conteudo)
 
 import re
 
 def extrair_sql(conteudo):
-    # pega tudo entre SELECT e fim
-        matches = re.findall(r"SELECT[\s\S]*", conteudo, re.IGNORECASE)
+    import re
 
-        if not matches:
-            raise Exception("Nenhum SELECT encontrado")
+    matches = re.findall(r"SELECT[\s\S]*", conteudo, re.IGNORECASE)
 
-        sql = matches[0]
+    if not matches:
+        print("⚠️ RESPOSTA DA IA:", conteudo)  # DEBUG
+        raise Exception("Nenhum SELECT encontrado na resposta da IA")
 
-    # corta qualquer coisa depois de uma possível explicação
-        sql = sql.split("\n")[0] if "\n" in sql else sql
+    sql = matches[0]
 
-    # limpeza pesada
-        sql = (
-            sql.replace("```sql", "")
-               .replace("```", "")
-               .replace(";", "")
-               .strip()
+    sql = sql.split("\n")[0] if "\n" in sql else sql
+
+    sql = (
+        sql.replace("```sql", "")
+           .replace("```", "")
+           .replace(";", "")
+           .strip()
     )
 
-        return sql
+    return sql
 
 # 🛡️ VALIDAR
 def validar_sql(sql):
