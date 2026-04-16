@@ -92,7 +92,7 @@ Pergunta: {pergunta}
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
-  conteudo = resposta.choices[0].message.content
+     conteudo = resposta.choices[0].message.content
 
 if "PERGUNTA_INSUFICIENTE" in conteudo:
     raise Exception("Pergunta incompleta. Seja mais específico.")
