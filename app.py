@@ -230,6 +230,32 @@ def corrigir_group_by(sql):
 
     return sql
 
+
+def corrigir_select_all(sql, pergunta):
+    pergunta_lower = pergunta.lower()
+
+    if "todas as colunas" in pergunta_lower or "tabela completa" in pergunta_lower:
+        if "SELECT *" in sql.upper():
+
+            colunas = """
+            tipo_orgao,
+            situacao,
+            orgao_executivo,
+            categoria,
+            cargo_nome,
+            tipo_vinculo,
+            total_servidores
+            """
+
+            sql = re.sub(
+                r"SELECT\s+\*",
+                f"SELECT {colunas}",
+                sql,
+                flags=re.IGNORECASE
+            )
+
+    return sql
+
 # ---------------- VALIDAÇÃO ---------------- #
 
 def validar_sql(sql, pergunta):
@@ -365,6 +391,7 @@ if pergunta:
             sql = corrigir_filtro_orgao(sql, pergunta)
             sql = corrigir_ilike_quotes(sql)
             sql = corrigir_group_by(sql)
+            sql = corrigir_select_all(sql, pergunta)
             sql = validar_sql(sql, pergunta)
 
             st.write("SQL final:")
