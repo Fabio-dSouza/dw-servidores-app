@@ -68,10 +68,10 @@ REGRAS DA TABELA:
 
 EXEMPLOS:
 PERGUNTA: Quantos servidores ativos existem na Administração Direta?
-QUERY: SELECT COUNT(*) FROM dw.view_completa WHERE situacao ILIKE 'ATIVO' AND tipo_orgao ILIKE '%DIRETA%'
+QUERY: SELECT COUNT(*) FROM dw.view_completa_limpa WHERE situacao ILIKE 'ATIVO' AND tipo_orgao ILIKE '%DIRETA%'
 
 PERGUNTA: quantos servidores ativos que possuem o cargo APPGG?
-QUERY: SELECT COUNT(*) FROM dw.view_completa WHERE situacao ILIKE 'ATIVO' AND tipo_orgao ILIKE '%DIRETA%' AND cargo ILIKE '%APPGG%'
+QUERY: SELECT COUNT(*) FROM dw.view_completa_limpa WHERE situacao ILIKE 'ATIVO' AND tipo_orgao ILIKE '%DIRETA%' AND cargo ILIKE '%APPGG%'
 
 Pergunta do Usuário: {pergunta}
 """
