@@ -252,6 +252,8 @@ if pergunta:
                 sql_bruto = gerar_sql_ia(pergunta)
 
             sql_limpo = extrair_sql(sql_bruto)
+            sql_limpo = corrigir_filtro_orgao(sql_limpo, pergunta)
+            sql_limpo = corrigir_ilike_quotes(sql_limpo)
             sql_final = validar_sql(sql_limpo)
 
             st.code(sql_final, language="sql")
