@@ -69,8 +69,19 @@ resposta para o usuário: "Existem 1.897 servidores ativos no cargo de APPGG no 
 
 
 
-- Para texto:
-  UPPER(coluna) ILIKE '%VALOR%'
+
+- Para filtros textuais SEMPRE use:
+coluna ILIKE '%VALOR%'
+
+Exemplo:
+situacao ILIKE '%ATIVO%'
+orgao ILIKE '%EDUCACAO%'
+cargo ILIKE '%APPGG%'
+
+Exemplo:
+situacao ILIKE '%ATIVO%'
+orgao ILIKE '%EDUCACAO%'
+cargo ILIKE '%APPGG%'
 
 - NÃO use "="
 - NÃO use ponto e vírgula
@@ -190,9 +201,8 @@ def executar_sql(sql):
         raise Exception("SQL não foi gerado")
 
     sql = validar_sql(sql)
-
-    # corrige agrupamento automaticamente
     sql = corrigir_group_by(sql)
+    sql = corrigir_ilike(sql)
 
     st.write("🛠️ SQL FINAL EXECUTADO:", sql)
 
@@ -206,7 +216,6 @@ def executar_sql(sql):
             return res.data[0]["count"]
 
     return res.data
-
 # 🗣️ RESPOSTA
 def gerar_resposta(pergunta, resultado):
 
