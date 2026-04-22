@@ -143,16 +143,64 @@ def validar_sql(sql):
 
     return sql
 
+import re
+
+def corrigir_group_by(sql):
+    sql_upper = sql.upper()
+
+    # só atua se houver COUNT e não existir GROUP BY
+    if "COUNT(" in sql_upper and "GROUP BY" not in sql_upper:
+
+        # captura o conteúdo entre SELECT e FROM
+        match_select = re.search(
+            r"SELECT\s+(.*?)\s+FROM",
+            sql,
+            re.IGNORECASE
+        )
+
+        if not match_select:
+            return sql
+
+        select_part = match_select.group(1)
+
+        # separa colunas do SELECT
+        colunas = [c.strip() for c in select_part.split(",")]
+
+        # remove agregações
+        colunas_sem_count = [
+            c for c in colunas
+            if "COUNT" not in c.upper()
+        ]
+
+        # se só tiver COUNT(*), não precisa GROUP BY
+        if not colunas_sem_count:
+            return sql
+
+        group_by = ", ".join(colunas_sem_count)
+
+        sql_corrigido = sql + f" GROUP BY {group_by}"
+
+        return sql_corrigido
+
+    return sql
+
 # 🔎 EXECUTAR
 def executar_sql(sql):
+    if not sql:
+        raise Exception("SQL não foi gerado")
+
     sql = validar_sql(sql)
 
-    # 🔒 valida agregação
-    validar_group_by(sql)
+    # corrige agrupamento automaticamente
+    sql = corrigir_group_by(sql)
+
+    st.write("🛠️ SQL FINAL EXECUTADO:", sql)
 
     res = supabase.rpc("execute_sql", {"query": sql}).execute()
 
-    # 🎯 se for COUNT
+    if not res.data:
+        return "Nenhum resultado encontrado."
+
     if isinstance(res.data, list) and len(res.data) > 0:
         if "count" in res.data[0]:
             return res.data[0]["count"]
