@@ -295,46 +295,39 @@ if "chat_history" not in st.session_state:
 pergunta_usuario = st.chat_input("Ex: quantos servidores ativos na administração direta?")
 
 if pergunta_usuario:
-    # Adiciona a pergunta do usuário ao histórico
+    # Adiciona a pergunta do usuário ao histórico e exibe imediatamente
     st.session_state.chat_history.append({"role": "user", "content": pergunta_usuario})
+    with st.chat_message("user"):
+        st.write(pergunta_usuario)
     
-    with st.spinner("Processando sua consulta..."):
-        try:
-            # 1. Gerar SQL pela IA
-            sql_gerado_ia = gerar_sql_ia(pergunta_usuario)
-            
-            # Permite ao usuário editar o SQL gerado
-            sql_editavel = st.text_area(
-                "âœï¸ SQL Gerado (edite se necessário):",
-                value=sql_gerado_ia,
-                height=150,
-                key=f"sql_editor_{len(st.session_state.chat_history)}"
-            )
+    with st.chat_message("assistant"):
+        with st.spinner("Processando..."):
+            try:
+                # 1. Gerar SQL
+                sql_bruto = gerar_sql_ia(pergunta_usuario)
+                sql_extraido = extrair_sql(sql_bruto)
+                
+                # Exibe o SQL gerado para conferência
+                st.code(sql_extraido, language="sql")
+                
+                # 2. Executar SQL
+                resultado_execucao = executar_sql_supabase(sql_extraido)
+                
+                # 3. Gerar resposta final
+                resposta_final = gerar_resposta_final(pergunta_usuario, resultado_execucao)
+                st.write(resposta_final)
+                
+                # Salva no histórico
+                msg_assistente = {"role": "assistant", "content": resposta_final}
+                
+                if isinstance(resultado_execucao, list) and resultado_execucao:
+                    df = pd.DataFrame(resultado_execucao)
+                    st.dataframe(df)
+                    msg_assistente["data"] = df
+                
+                st.session_state.chat_history.append(msg_assistente)
 
-            # 2. Executar SQL
-            resultado_execucao = executar_sql_supabase(sql_editavel)
-            
-            st.write("ðŸ“Š Resultado Bruto da Consulta:", resultado_execucao)
-
-            # 3. Gerar resposta final
-            resposta_final = gerar_resposta_final(pergunta_usuario, resultado_execucao)
-            
-            # Adiciona a resposta do assistente ao histórico
-            msg_assistente = {"role": "assistant", "content": resposta_final}
-            if isinstance(resultado_execucao, list) and resultado_execucao and not isinstance(resultado_execucao, str):
-                msg_assistente["data"] = pd.DataFrame(resultado_execucao)
-            st.session_state.chat_history.append(msg_assistente)
-
-        except ValueError as ve:
-            st.error(f"Erro na validação: {ve}")
-            st.session_state.chat_history.append({"role": "assistant", "content": f"Erro: {ve}"})
-        except Exception as e:
-            st.error(f"Ocorreu um erro inesperado: {e}")
-            st.session_state.chat_history.append({"role": "assistant", "content": f"Ocorreu um erro inesperado ao processar sua solicitação. Por favor, tente novamente ou reformule a pergunta. Detalhes: {e}"})
-
-# Exibe o histórico do chat
-for mensagem in st.session_state.chat_history:
-    with st.chat_message(mensagem["role"]):
-        st.write(mensagem["content"])
-        if "data" in mensagem:
-            st.dataframe(mensagem["data"])"])))
+            except Exception as e:
+                erro_msg = f"Ocorreu um erro: {str(e)}"
+                st.error(erro_msg)
+                st.session_state.chat_history.append({"role": "assistant", "content": erro_msg})
