@@ -378,10 +378,75 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📊 Consulta Inteligente RH-RS")
+# ---------- CSS ---------- #
+st.markdown("""
+<style>
+.main {
+    background-color: #f8fafc;
+}
 
+[data-testid="stSidebar"] {
+    background-color: #0f172a;
+}
+
+[data-testid="stSidebar"] * {
+    color: white;
+}
+
+div[data-testid="metric-container"] {
+    background-color: white;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+}
+
+.block-container {
+    padding-top: 2rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------- SIDEBAR ---------- #
+with st.sidebar:
+    st.title("RH Analytics RS")
+
+    if st.button("➕ Nova consulta"):
+        st.session_state.chat_history = []
+
+    st.subheader("Consultas rápidas")
+
+    if st.button("Servidores ativos"):
+        st.session_state.pergunta_rapida = (
+            "quantos servidores ativos existem?"
+        )
+
+    if st.button("Servidores por órgão"):
+        st.session_state.pergunta_rapida = (
+            "quantos servidores ativos por orgao"
+        )
+
+    if st.button("Servidores da educação"):
+        st.session_state.pergunta_rapida = (
+            "quantos servidores ativos na educação"
+        )
+
+    if st.button("Servidores da fazenda"):
+        st.session_state.pergunta_rapida = (
+            "quantos servidores ativos na fazenda"
+        )
+
+# ---------- HEADER ---------- #
+st.title("📊 Consulta Inteligente RH-RS")
+st.caption(
+    "Consulte dados de servidores públicos do RS usando linguagem natural."
+)
+
+# ---------- HISTÓRICO ---------- #
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+
+if "pergunta_rapida" not in st.session_state:
+    st.session_state.pergunta_rapida = None
 
 for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"]):
@@ -390,11 +455,23 @@ for msg in st.session_state.chat_history:
         if "data" in msg:
             st.dataframe(msg["data"])
 
-pergunta = st.chat_input(
+# ---------- INPUT ---------- #
+pergunta_manual = st.chat_input(
     "Ex: quantos servidores ativos na educação?"
 )
 
+pergunta = (
+    st.session_state.pergunta_rapida
+    if st.session_state.pergunta_rapida
+    else pergunta_manual
+)
+
+# limpa pergunta rápida após uso
+st.session_state.pergunta_rapida = None
+
+# ---------- EXECUÇÃO ---------- #
 if pergunta:
+
     st.session_state.chat_history.append({
         "role": "user",
         "content": pergunta
@@ -406,40 +483,73 @@ if pergunta:
     with st.chat_message("assistant"):
 
         try:
+            # gerar sql
             with st.spinner("Gerando SQL..."):
                 sql_bruto = gerar_sql_ia(pergunta)
 
-            st.write("SQL bruto IA:")
-            st.code(sql_bruto)
+            # debug opcional
+            with st.expander("Ver SQL bruto IA"):
+                st.code(sql_bruto)
 
+            # pipeline de correções
             sql = extrair_sql(sql_bruto)
             sql = corrigir_filtro_orgao(sql, pergunta)
-            sql = corrigir_equals_orgao(sql)   # NOVA LINHA
+            sql = corrigir_equals_orgao(sql)
             sql = corrigir_ilike_quotes(sql)
             sql = corrigir_group_by(sql)
             sql = validar_sql(sql, pergunta)
 
-            st.write("SQL final:")
-            st.code(sql, language="sql")
+            with st.expander("Ver SQL final"):
+                st.code(sql, language="sql")
 
+            # consulta banco
             with st.spinner("Consultando banco..."):
                 resultado = executar_sql(sql)
 
             if resultado:
+
                 df = pd.DataFrame(resultado)
 
-                # resultado agregado
+                # ---------------- KPI ---------------- #
                 if len(df.columns) == 1:
                     valor = df.iloc[0, 0]
 
                     if valor is None:
-                        st.warning("Nenhum registro encontrado.")
+                        st.warning(
+                            "Nenhum registro encontrado."
+                        )
                     else:
-                        st.success(f"Total encontrado: {valor}")
+                        st.metric(
+                            label="Total encontrado",
+                            value=f"{int(valor):,}".replace(",", ".")
+                        )
 
+                # ---------------- TABELA ---------------- #
                 else:
-                    st.dataframe(df)
+                    st.subheader("Resultados")
+                    st.dataframe(
+                        df,
+                        use_container_width=True
+                    )
 
+                    # ---------------- GRÁFICO ---------------- #
+                    if "total" in df.columns:
+                        coluna_categoria = [
+                            c for c in df.columns
+                            if c != "total"
+                        ][0]
+
+                        grafico_df = df[
+                            [coluna_categoria, "total"]
+                        ].set_index(coluna_categoria)
+
+                        st.subheader(
+                            "Visualização"
+                        )
+
+                        st.bar_chart(grafico_df)
+
+                # salva histórico
                 st.session_state.chat_history.append({
                     "role": "assistant",
                     "content": "Consulta realizada com sucesso",
@@ -447,7 +557,9 @@ if pergunta:
                 })
 
             else:
-                st.warning("Nenhum resultado encontrado.")
+                st.warning(
+                    "Nenhum resultado encontrado."
+                )
 
         except Exception as e:
             st.error(f"Erro: {e}")
