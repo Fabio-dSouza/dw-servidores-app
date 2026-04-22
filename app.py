@@ -59,8 +59,23 @@ Colunas:
 
 REGRAS IMPORTANTES:
 
-1. A tabela já está agregada
-2. Para quantidade utilize:
+1. A tabela já está agregada em situação
+REGRAS SEMÂNTICAS IMPORTANTES:
+
+- Quando o usuário mencionar secretarias ou áreas governamentais
+(ex: educação, saúde, segurança, fazenda),
+priorize o campo `orgao_executivo`
+
+Exemplo:
+"quantos servidores ativos na educação"
+
+SQL correto:
+SELECT SUM(total_servidores) as total
+FROM dw.view_consulta_rhe
+WHERE situacao = 'ATIVO'
+AND orgao_executivo ILIKE '%EDUCACAO%'
+
+2. Para quantidade utilize, observando sempre os filtros que o usuário indicar:
 
 SUM(total_servidores)
 
