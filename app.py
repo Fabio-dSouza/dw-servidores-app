@@ -417,7 +417,7 @@ if pergunta:
             sql = corrigir_equals_orgao(sql)   # NOVA LINHA
             sql = corrigir_ilike_quotes(sql)
             sql = corrigir_group_by(sql)
-            sql = validar_sql(sql)
+            sql = validar_sql(sql, pergunta)
 
             st.write("SQL final:")
             st.code(sql, language="sql")
