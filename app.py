@@ -90,18 +90,21 @@ Pergunta: {pergunta}
 
     resposta = client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
     )
+
     conteudo = resposta.choices[0].message.content
 
-if "PERGUNTA_INSUFICIENTE" in conteudo:
-    raise Exception("Pergunta incompleta. Seja mais específico.")
+    st.write("🧠 RESPOSTA BRUTA IA:", conteudo)
 
-st.write("🧠 RESPOSTA BRUTA IA:", conteudo)  # 👈 ESSENCIAL
+    if "PERGUNTA_INSUFICIENTE" in conteudo:
+        raise Exception("Pergunta incompleta. Seja mais específico.")
 
-sql = extrair_sql(conteudo)
+    sql = extrair_sql(conteudo)
 
-import re
+    return sql
 
 def extrair_sql(conteudo):
     import re
