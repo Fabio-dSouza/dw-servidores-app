@@ -201,6 +201,35 @@ def corrigir_ilike_quotes(sql):
 
     return sql
 
+def corrigir_group_by(sql):
+    sql_upper = sql.upper()
+
+    # se houver SUM + orgao_executivo sem GROUP BY
+    if (
+        "SUM(" in sql_upper
+        and "ORGAO_EXECUTIVO" in sql_upper
+        and "GROUP BY" not in sql_upper
+    ):
+        sql += " GROUP BY orgao_executivo"
+
+    # se houver SUM + categoria sem GROUP BY
+    if (
+        "SUM(" in sql_upper
+        and "CATEGORIA" in sql_upper
+        and "GROUP BY" not in sql_upper
+    ):
+        sql += " GROUP BY categoria"
+
+    # se houver SUM + cargo_nome sem GROUP BY
+    if (
+        "SUM(" in sql_upper
+        and "CARGO_NOME" in sql_upper
+        and "GROUP BY" not in sql_upper
+    ):
+        sql += " GROUP BY cargo_nome"
+
+    return sql
+
 # ---------------- VALIDAÇÃO ---------------- #
 
 def validar_sql(sql, pergunta):
@@ -335,6 +364,7 @@ if pergunta:
             sql = extrair_sql(sql_bruto)
             sql = corrigir_filtro_orgao(sql, pergunta)
             sql = corrigir_ilike_quotes(sql)
+            sql = corrigir_group_by(sql)
             sql = validar_sql(sql, pergunta)
 
             st.write("SQL final:")
