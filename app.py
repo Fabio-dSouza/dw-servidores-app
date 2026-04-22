@@ -99,6 +99,36 @@ def extrair_sql(conteudo_ia: str) -> str:
     # fallback: retorna texto original limpo
     return " ".join(txt.split())
 
+def corrigir_agregacao(sql):
+    sql_upper = sql.upper()
+
+    # Caso usuário peça separar por situação mas IA esqueça COUNT/GROUP BY
+    if (
+        "SITUACAO_PADRONIZADA" in sql_upper
+        and "COUNT(" not in sql_upper
+        and "GROUP BY" not in sql_upper
+    ):
+        return """
+        SELECT situacao_padronizada, COUNT(*) as total
+        FROM dw.view_completa_limpa
+        GROUP BY situacao_padronizada
+        """
+
+    # Caso peça órgão + situação sem agregação
+    if (
+        "ORGAO" in sql_upper
+        and "SITUACAO_PADRONIZADA" in sql_upper
+        and "COUNT(" not in sql_upper
+    ):
+        return """
+        SELECT orgao, situacao_padronizada, COUNT(*) as total
+        FROM dw.view_completa_limpa
+        GROUP BY orgao, situacao_padronizada
+        ORDER BY total DESC
+        """
+
+    return sql
+
 def validar_select_seguro(sql: str) -> str:
     sql_norm = sql.strip().rstrip(";")
     # Normalizar espaços
