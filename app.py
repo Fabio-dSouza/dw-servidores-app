@@ -194,36 +194,79 @@ def corrigir_ilike_quotes(sql):
 
 # ---------------- VALIDAÇÃO ---------------- #
 
-def validar_sql(sql):
+def validar_sql(sql, pergunta):
+    sql = re.sub(r"\s+", " ", sql).strip()
     sql_upper = sql.upper()
 
+    # comandos proibidos
     comandos_proibidos = [
-        "INSERT",
-        "UPDATE",
-        "DELETE",
-        "DROP",
-        "ALTER",
-        "CREATE",
-        "TRUNCATE"
+        "INSERT", "UPDATE", "DELETE",
+        "DROP", "ALTER", "CREATE", "TRUNCATE"
     ]
 
     for cmd in comandos_proibidos:
         if cmd in sql_upper:
-            raise Exception("Comando SQL não permitido")
+            raise Exception(f"Comando proibido: {cmd}")
 
-    if not sql_upper.startswith("SELECT"):
-        raise Exception("Somente SELECT permitido")
+    # impedir SELECT *
+    if "SELECT *" in sql_upper:
+        raise Exception("SELECT * não permitido")
 
+    # força uso apenas da tabela correta
     if TABELA_CONSULTA.lower() not in sql.lower():
         raise Exception("Consulta fora da tabela permitida")
 
-    # impede múltiplos SELECT
-    if sql_upper.count("SELECT") > 1:
-        raise Exception("Múltiplas consultas não permitidas")
+    # colunas permitidas
+    colunas_permitidas = [
+        "tipo_orgao",
+        "situacao",
+        "orgao_executivo",
+        "categoria",
+        "cargo_nome",
+        "tipo_vinculo",
+        "total_servidores"
+    ]
 
-    # adiciona limit apenas se não existir
-    if "LIMIT" not in sql_upper:
-        sql += f" LIMIT {DEFAULT_LIMIT}"
+    # extrai colunas do SELECT
+    select_match = re.search(
+        r"SELECT (.*?) FROM",
+        sql,
+        re.IGNORECASE
+    )
+
+    if select_match:
+        campos = select_match.group(1)
+
+        campos_limpos = re.split(r",", campos)
+
+        for campo in campos_limpos:
+            campo = campo.strip()
+
+            if "SUM(" in campo.upper():
+                continue
+
+            if "COUNT(" in campo.upper():
+                continue
+
+            if " AS " in campo.upper():
+                campo = campo.split()[0]
+
+            if campo not in colunas_permitidas:
+                raise Exception(
+                    f"Coluna não permitida: {campo}"
+                )
+
+    # perguntas genéricas precisam de filtro
+    if "quantos servidores" in pergunta.lower():
+        if "WHERE" not in sql_upper:
+            raise Exception(
+                "Consulta muito ampla. Especifique ativo/inativo/orgão."
+            )
+
+    # força LIMIT quando não houver agregação
+    if "SUM(" not in sql_upper and "COUNT(" not in sql_upper:
+        if "LIMIT" not in sql_upper:
+            sql += f" LIMIT {DEFAULT_LIMIT}"
 
     return sql
 
@@ -283,7 +326,7 @@ if pergunta:
             sql = extrair_sql(sql_bruto)
             sql = corrigir_filtro_orgao(sql, pergunta)
             sql = corrigir_ilike_quotes(sql)
-            sql = validar_sql(sql)
+            sql = validar_sql(sql, pergunta)
 
             st.write("SQL final:")
             st.code(sql, language="sql")
