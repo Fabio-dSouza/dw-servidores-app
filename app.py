@@ -12,6 +12,8 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
 TABELA_CONSULTA = "dw.view_consulta_rhe"
+DEFAULT_LIMIT = 1000
+AI_MODEL = "llama-3.1-8b-instant"
 
 COLUNAS_PERMITIDAS = {
     "tipo_orgao",
@@ -23,8 +25,15 @@ COLUNAS_PERMITIDAS = {
     "total_servidores"
 }
 
-DEFAULT_LIMIT = 1000
-AI_MODEL = "llama-3.1-8b-instant"
+AREAS_GOVERNO = {
+    "educacao": "EDUCACAO",
+    "educação": "EDUCACAO",
+    "saude": "SAUDE",
+    "saúde": "SAUDE",
+    "seguranca": "SEGURANCA",
+    "segurança": "SEGURANCA",
+    "fazenda": "FAZENDA"
+}
 
 # ---------------- CLIENTS ---------------- #
 
@@ -45,10 +54,10 @@ def gerar_prompt(pergunta):
     return f"""
 Você é especialista em PostgreSQL do sistema RH-RS.
 
-Base disponível:
+Tabela disponível:
 {TABELA_CONSULTA}
 
-Colunas:
+COLUNAS PERMITIDAS:
 - tipo_orgao
 - situacao
 - orgao_executivo
@@ -57,64 +66,36 @@ Colunas:
 - tipo_vinculo
 - total_servidores
 
-REGRAS IMPORTANTES:
+REGRAS:
 
-1. A tabela já está agregada em situação
-REGRAS SEMÂNTICAS IMPORTANTES:
-
-- Quando o usuário mencionar secretarias ou áreas governamentais
-(ex: educação, saúde, segurança, fazenda),
-priorize o campo `orgao_executivo`
-
-Exemplo:
-"quantos servidores ativos na educação"
-
-SQL correto:
-SELECT SUM(total_servidores) as total
-FROM dw.view_consulta_rhe
-WHERE situacao = 'ATIVO'
-AND orgao_executivo ILIKE '%EDUCACAO%'
-
-2. Para quantidade utilize, observando sempre os filtros que o usuário indicar:
-
+1. A tabela já está agregada
+→ para quantidade use:
 SUM(total_servidores)
 
-3. Para filtros textuais:
-use ILIKE '%valor%'
-
-4. Para ativos:
+2. Para ativos:
 situacao = 'ATIVO'
 
-5. Para aposentados:
+3. Para aposentados/inativos:
 situacao = 'INATIVO'
 
-6. Se houver agrupamento:
-use GROUP BY
+4. Se o usuário mencionar:
+educação, saúde, segurança, fazenda
+→ use orgao_executivo
 
-7. Retorne apenas SQL
+5. Para filtros textuais:
+ILIKE '%valor%'
+
+6. Se houver agrupamento:
+GROUP BY
+
+7. Retorne SOMENTE SQL
 
 Exemplo:
-
-Pergunta:
-quantos servidores ativos existem?
-
-SQL:
 SELECT SUM(total_servidores) as total
 FROM {TABELA_CONSULTA}
 WHERE situacao = 'ATIVO'
 
 Pergunta:
-quantos ativos por órgão?
-
-SQL:
-SELECT orgao_executivo,
-SUM(total_servidores) as total
-FROM {TABELA_CONSULTA}
-WHERE situacao = 'ATIVO'
-GROUP BY orgao_executivo
-ORDER BY total DESC
-
-Pergunta usuário:
 {pergunta}
 """
 
@@ -142,7 +123,7 @@ def gerar_sql_ia(pergunta):
                 raise e
             time.sleep(2)
 
-# ---------------- EXTRAIR SQL ---------------- #
+# ---------------- EXTRAÇÃO ---------------- #
 
 def extrair_sql(texto):
     texto = re.sub(
@@ -159,19 +140,56 @@ def extrair_sql(texto):
     )
 
     if not match:
-        raise Exception("Nenhum SQL encontrado")
+        raise Exception("Nenhum SQL válido encontrado")
 
-    return match.group(1).strip()
+    sql = match.group(1).strip()
+    sql = re.sub(r"\s+", " ", sql)
+
+    return sql
+
+# ---------------- CORREÇÃO ORGÃO ---------------- #
+
+def corrigir_filtro_orgao(sql, pergunta):
+    pergunta_lower = pergunta.lower()
+
+    for termo_usuario, termo_sql in AREAS_GOVERNO.items():
+
+        if termo_usuario in pergunta_lower:
+
+            # Corrige categoria -> orgao
+            sql = re.sub(
+                r"categoria\s+ILIKE\s+'%.*?%'",
+                f"orgao_executivo ILIKE '%{termo_sql}%'",
+                sql,
+                flags=re.IGNORECASE
+            )
+
+            # adiciona filtro se IA esquecer
+            if "orgao_executivo" not in sql.lower():
+
+                if "where" in sql.lower():
+                    sql += f" AND orgao_executivo ILIKE '%{termo_sql}%'"
+                else:
+                    sql += f" WHERE orgao_executivo ILIKE '%{termo_sql}%'"
+
+    return sql
+
+# ---------------- CORREÇÃO ILIKE ---------------- #
 
 def corrigir_ilike_quotes(sql):
+
     pattern = r"(ILIKE\s+'%[^']+)(\s+LIMIT)"
-    
+
     match = re.search(pattern, sql, re.IGNORECASE)
-    
+
     if match:
-        trecho_corrigido = match.group(1) + "%'" + match.group(2)
-        sql = re.sub(pattern, trecho_corrigido, sql, flags=re.IGNORECASE)
-    
+        sql = re.sub(
+            pattern,
+            lambda m: m.group(1) + "%'" + m.group(2),
+            sql,
+            flags=re.IGNORECASE
+        )
+
     return sql
 
 # ---------------- VALIDAÇÃO ---------------- #
@@ -185,34 +203,41 @@ def validar_sql(sql):
         "DELETE",
         "DROP",
         "ALTER",
-        "CREATE"
+        "CREATE",
+        "TRUNCATE"
     ]
 
     for cmd in comandos_proibidos:
         if cmd in sql_upper:
-            raise Exception("Comando não permitido")
+            raise Exception("Comando SQL não permitido")
+
+    if not sql_upper.startswith("SELECT"):
+        raise Exception("Somente SELECT permitido")
 
     if TABELA_CONSULTA.lower() not in sql.lower():
         raise Exception("Consulta fora da tabela permitida")
 
+    # impede múltiplos SELECT
+    if sql_upper.count("SELECT") > 1:
+        raise Exception("Múltiplas consultas não permitidas")
+
+    # adiciona limit apenas se não existir
     if "LIMIT" not in sql_upper:
         sql += f" LIMIT {DEFAULT_LIMIT}"
 
     return sql
 
-
-
 # ---------------- EXECUÇÃO ---------------- #
 
 def executar_sql(sql):
-    res = supabase.rpc(
+    resposta = supabase.rpc(
         "execute_sql",
         {
             "query": sql
         }
     ).execute()
 
-    return res.data
+    return resposta.data
 
 # ---------------- UI ---------------- #
 
@@ -247,31 +272,37 @@ if pergunta:
         st.write(pergunta)
 
     with st.chat_message("assistant"):
+
         try:
             with st.spinner("Gerando SQL..."):
                 sql_bruto = gerar_sql_ia(pergunta)
 
-            sql_limpo = extrair_sql(sql_bruto)
-            sql_limpo = corrigir_filtro_orgao(sql_limpo, pergunta)
-            sql_limpo = corrigir_ilike_quotes(sql_limpo)
-            sql_final = validar_sql(sql_limpo)
+            st.write("SQL bruto IA:")
+            st.code(sql_bruto)
 
-            st.code(sql_final, language="sql")
+            sql = extrair_sql(sql_bruto)
+            sql = corrigir_filtro_orgao(sql, pergunta)
+            sql = corrigir_ilike_quotes(sql)
+            sql = validar_sql(sql)
+
+            st.write("SQL final:")
+            st.code(sql, language="sql")
 
             with st.spinner("Consultando banco..."):
-                resultado = executar_sql(sql_final)
+                resultado = executar_sql(sql)
 
             if resultado:
                 df = pd.DataFrame(resultado)
 
-                if (
-                    len(df.columns) == 1
-                    and "total" in df.columns[0].lower()
-                ):
-                    total = df.iloc[0, 0]
-                    st.success(
-                        f"Total encontrado: {total}"
-                    )
+                # resultado agregado
+                if len(df.columns) == 1:
+                    valor = df.iloc[0, 0]
+
+                    if valor is None:
+                        st.warning("Nenhum registro encontrado.")
+                    else:
+                        st.success(f"Total encontrado: {valor}")
+
                 else:
                     st.dataframe(df)
 
@@ -282,9 +313,7 @@ if pergunta:
                 })
 
             else:
-                st.warning(
-                    "Nenhum resultado encontrado."
-                )
+                st.warning("Nenhum resultado encontrado.")
 
         except Exception as e:
             st.error(f"Erro: {e}")
