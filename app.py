@@ -2,328 +2,339 @@ import streamlit as st
 from supabase import create_client
 from groq import Groq
 import pandas as pd
-
-# 🔐 CONFIG
-supabase = create_client(
-    st.secrets["SUPABASE_URL"],
-    st.secrets["SUPABASE_KEY"]
-)
-
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-
-TABELA = "dw.view_completa_limpa"
-
-# 🧠 GERAR SQL
-def gerar_sql(pergunta):
-    prompt = f"""
-Você é especialista em PostgreSQL.
-
-Gere uma query SQL para a tabela dw.view_completa_limpa.
-
-COLUNAS PERMITIDAS:
-tipo_orgao, orgao, cargo, categoria, vinculo, situacao
-
-REGRAS:
-FORMATO DE RESPOSTA (OBRIGATÓRIO):
-
-- Retorne SOMENTE UMA LINHA com SQL
-- NÃO explique
-- NÃO escreva texto antes ou depois
-- NÃO use quebras de linha
-- NÃO escreva "resposta", "query", ou qualquer explicação
-
-- Apenas SELECT
-- Nunca use INSERT, UPDATE, DELETE
-- Nunca invente colunas
-- Para contagem → COUNT(*)
-
-Se a pergunta for incompleta ou ambígua:
-- NÃO gere SQL
-- Responda: "PERGUNTA_INSUFICIENTE"
-
-🚨 REGRAS CRÍTICAS:
-
-- Todos os dados são extraídos da base do sistema RHE (Sistema de Recursos Humanos do estado do Rio Grande do Sul (RS) TODOS OS DADOS SÃO DO PODER EXECUTIVO DO RS
-- "adm direta", "administração direta" → tipo_orgao ILIKE '%DIRETA%'
-- orgao diz respeito ao local de exercício dos servidor, geralmente sobre a secretaria, mas pode trazer o nome de um órgão específico
--  quando você não entender uma pergunta, buscar entendimento com o usuario, tentando especificar o que você não entendeu da pergunta
-- utilize os filtros solicitados pelo prompt do usuário
-- cada linha da tabela significa um registro, ou seja, um servidor na base e eles podem possuir variados campos, todos passíveis de filtro;
-- quando o usuário solicitar quantidades ou número, em primeiro lugar, execute uma contagem das linhas com os filtros solicitados
-
-EXEMPLO:    
-PERGUNTA: Quantos servidores ativos existem na Administração Direta?
-RESPOSTA (QUERY):SELECT COUNT(*)  FROM dw.view_completa
-                 WHERE situacao ilike 'ATIVO'
-                 and tipo_orgao ilike '%DIRETA';
-resposta para o usuário: "Existem 122.569 servidores ativos na administração direta no estado do Rio Grande do Sul."
-
-Exemplo: quantos servidores ativos que possuem o cargo APPGG?
-resposta (query):   SELECT COUNT(*)
-                    FROM dw.view_completa
-                    WHERE situacao ILIKE 'ATIVO'
-                    AND tipo_orgao ILIKE '%DIRETA%'
-                    AND cargo ILIKE 'APPGG%'
-Essa query conta a quantidade de servidores ativos na Administração Direta que possuem o cargo com o nome a partir de "APPGG".
-resposta para o usuário: "Existem 1.897 servidores ativos no cargo de APPGG no estado do Rio Grande do Sul."
-
-
-
-
-- Para filtros textuais SEMPRE use:
-
-- Para situacao:
-use match exato:
-situacao ILIKE 'ATIVO'
-situacao ILIKE 'INATIVO'
-
-- Para orgao, cargo, categoria:
-use contains:
-orgao ILIKE '%EDUCACAO%'
-cargo ILIKE '%APPGG%'
-categoria ILIKE '%MAGISTERIO%'
-coluna ILIKE '%VALOR%'
-
-
-- NÃO use "="
-- NÃO use ponto e vírgula
-- Retorne apenas SQL
-
-REGRAS DA TABELA
-
-COLUNAS (TODOS OS CAMPOS SÃO PASSÍVEIS DE SEREM FILTRADOS)
--  Tipo_órgão: diz respeito a classificação do órgão e somente pode assumir estes 3 valores ADMINISTRACAO DIRETA, AUTARQUIA, FUNDAÇÃO
-    ADMINSTRAÇÃO DIRETA = "ADM. DIRETA", admi. direta, "direta"
-    Quando o questionamento falar sobre 'ADMINISTRAÇÃO INDIRETA" OU "INDIRETA" é agrupado os campos de "AUTARQUIA" E "FUNDAÇÃO"
-- vinculo diz respeito ao tipo de contrato do servidor, é como se fosse o tipo de contrato dos servidores
-- O CAMPO 'CATEGORIA' DIZ RESPEITO AO VALOR AGREGADO DO CARGO, OU SEJA, PE UM CAMPO "PAI" DO CARGO E UMA CATEGORIA PODE POSSUIR VÁRIOS CARGOS, E UM CARGO PERTENCE A SOMENTE UMA CATEGORIA
-
-Pergunta: {pergunta}
-"""
-
-    resposta = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    conteudo = resposta.choices[0].message.content
-
-    st.write("🧠 RESPOSTA BRUTA IA:", conteudo)
-
-    if "PERGUNTA_INSUFICIENTE" in conteudo:
-        raise Exception("Pergunta incompleta. Seja mais específico.")
-
-    sql = extrair_sql(conteudo)
-
-    return sql
-
 import re
 
-def extrair_sql(conteudo):
-    # remove markdown
-    conteudo = (
-        conteudo.replace("```sql", "")
-        .replace("```", "")
-        .strip()
-    )
+# --- 1. Configuração Inicial --- #
 
-    # pega apenas o primeiro SELECT até o primeiro ;
-    match = re.search(
-        r"(SELECT[\s\S]*?;)",
-        conteudo,
-        re.IGNORECASE
-    )
+# Carrega as chaves secretas do Streamlit
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
+# Inicializa clientes Supabase e Groq
+supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+# Define a tabela principal para consulta
+TABELA_CONSULTA = "dw.view_completa_limpa"
+
+# Colunas permitidas para consulta
+COLUNAS_PERMITIDAS = "tipo_orgao, orgao, cargo, categoria, vinculo, situacao"
+
+# --- 2. Funções de Geração e Validação de SQL --- #
+
+def gerar_prompt_sql(pergunta: str) -> str:
+    """
+    Gera o prompt completo para a IA, incluindo regras e exemplos para a criação de SQL.
+    """
+    prompt = f"""
+Você é um especialista em PostgreSQL e sua tarefa é gerar queries SQL.
+
+Com base na pergunta do usuário, gere uma query SQL para a tabela `{TABELA_CONSULTA}`.
+
+COLUNAS PERMITIDAS PARA FILTRO E SELEÇÃO:
+{COLUNAS_PERMITIDAS}
+
+REGRAS OBRIGATÓRIAS PARA A GERAÇÃO DO SQL:
+- Retorne SOMENTE UMA LINHA com a query SQL. NÃO inclua texto explicativo antes ou depois.
+- NÃO use quebras de linha dentro da query SQL.
+- NÃO escreva "resposta:", "query:", ou qualquer outra explicação.
+- A query DEVE ser um comando SELECT.
+- NUNCA use INSERT, UPDATE, DELETE, DROP, ALTER ou qualquer outro comando que modifique o banco de dados.
+- NUNCA invente colunas que não estejam listadas em COLUNAS PERMITIDAS.
+- Para contagens, utilize COUNT(*).
+
+REGRAS CRÍTICAS E CONTEXTO DA BASE DE DADOS:
+- Todos os dados são extraídos do sistema RHE (Sistema de Recursos Humanos do estado do Rio Grande do Sul) e pertencem ao PODER EXECUTIVO DO RS.
+- Para "administração direta" ou "adm direta", o filtro correto para `tipo_orgao` é `tipo_orgao ILIKE '%DIRETA%'`.
+- A coluna `orgao` refere-se ao local de exercício do servidor (geralmente uma secretaria, mas pode ser um órgão específico).
+- Se a pergunta for incompleta ou ambígua, NÃO gere SQL. Responda APENAS: "PERGUNTA_INSUFICIENTE".
+- Utilize os filtros solicitados pelo prompt do usuário.
+- Cada linha da tabela representa um registro de servidor, com vários campos passíveis de filtro.
+- Se o usuário solicitar quantidades ou números, priorize uma contagem de linhas com os filtros solicitados.
+
+REGRAS PARA FILTROS TEXTUAIS:
+- Para `situacao`, use correspondência exata (ex: `situacao ILIKE 'ATIVO'` ou `situacao ILIKE 'INATIVO'`).
+- Para `orgao`, `cargo`, `categoria`, use `ILIKE '%VALOR%'` (ex: `orgao ILIKE '%EDUCACAO%'`, `cargo ILIKE '%APPGG%'`, `categoria ILIKE '%MAGISTERIO%'`).
+- NUNCA use "=" para filtros textuais.
+- NUNCA inclua ponto e vírgula (`;`) no final da query SQL.
+
+REGRAS DA TABELA:
+- `Tipo_órgão`: Classificação do órgão, aceita apenas "ADMINISTRACAO DIRETA", "AUTARQUIA", "FUNDAÇÃO".
+  - "ADMINISTRAÇÃO DIRETA" pode ser referenciado como "ADM. DIRETA", "admi. direta", "direta".
+  - "ADMINISTRAÇÃO INDIRETA" ou "INDIRETA" agrupa "AUTARQUIA" e "FUNDAÇÃO".
+- `vinculo`: Tipo de contrato do servidor.
+- `categoria`: Valor agregado do cargo. Uma categoria pode ter vários cargos, mas um cargo pertence a apenas uma categoria.
+
+EXEMPLOS:
+PERGUNTA: Quantos servidores ativos existem na Administração Direta?
+QUERY: SELECT COUNT(*) FROM dw.view_completa WHERE situacao ILIKE 'ATIVO' AND tipo_orgao ILIKE '%DIRETA%'
+
+PERGUNTA: quantos servidores ativos que possuem o cargo APPGG?
+QUERY: SELECT COUNT(*) FROM dw.view_completa WHERE situacao ILIKE 'ATIVO' AND tipo_orgao ILIKE '%DIRETA%' AND cargo ILIKE '%APPGG%'
+
+Pergunta do Usuário: {pergunta}
+"""
+    return prompt
+
+def gerar_sql_ia(pergunta: str) -> str:
+    """
+    Envia a pergunta do usuário para a IA e retorna a query SQL gerada.
+    Lida com a resposta 'PERGUNTA_INSUFICIENTE'.
+    """
+    prompt_completo = gerar_prompt_sql(pergunta)
+    
+    try:
+        resposta_ia = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "user", "content": prompt_completo}
+            ]
+        )
+        conteudo = resposta_ia.choices[0].message.content.strip()
+
+        st.write("ðŸ§  RESPOSTA BRUTA IA:", conteudo)
+
+        if "PERGUNTA_INSUFICIENTE" in conteudo.upper():
+            raise ValueError("Pergunta incompleta. Por favor, seja mais específico.")
+        
+        return conteudo
+
+    except Exception as e:
+        st.error(f"Erro ao gerar SQL pela IA: {e}")
+        raise
+
+def extrair_sql(conteudo_ia: str) -> str:
+    """
+    Extrai a query SQL de uma string, removendo markdown e garantindo que seja um SELECT.
+    """
+    # Remove blocos de código markdown (```sql, ```)
+    conteudo_limpo = re.sub(r"```(?:sql)?\s*([\s\S]*?)\s*```", r"\1", conteudo_ia, flags=re.IGNORECASE).strip()
+    
+    # Tenta encontrar um SELECT que termine com ;
+    match = re.search(r"(SELECT[\s\S]*?)(?:;|$)", conteudo_limpo, re.IGNORECASE)
 
     if match:
-        sql = match.group(1)
+        sql = match.group(1).strip()
     else:
-        # fallback caso não tenha ;
-        match = re.search(
-            r"(SELECT[\s\S]*)",
-            conteudo,
-            re.IGNORECASE
-        )
-
-        if not match:
-            raise Exception(
-                f"Nenhum SQL encontrado. Resposta IA: {conteudo}"
-            )
-
-        sql = match.group(1)
-
-    sql = sql.replace(";", "").strip()
+        raise ValueError(f"Nenhum comando SELECT válido encontrado na resposta da IA: {conteudo_ia}")
+    
+    # Remove qualquer ponto e vírgula remanescente no final
+    if sql.endswith(';'):
+        sql = sql[:-1].strip()
 
     return sql
 
-# 🛡️ VALIDAR
-def validar_sql(sql):
+def validar_sql(sql: str) -> str:
+    """
+    Valida a query SQL para garantir que não contenha comandos proibidos e comece com SELECT.
+    """
     sql_upper = sql.upper()
-
-    proibidos = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER"]
-
-    for p in proibidos:
-        if p in sql_upper:
-            raise Exception("Comando SQL não permitido")
-
+    
+    comandos_proibidos = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
+    for comando in comandos_proibidos:
+        if comando in sql_upper:
+            raise ValueError(f"Comando SQL não permitido detectado: {comando}")
+            
     if not sql_upper.startswith("SELECT"):
-        raise Exception("Apenas SELECT permitido")
-
+        raise ValueError("Apenas comandos SELECT são permitidos.")
+        
     return sql
 
-import re
-
-def corrigir_group_by(sql):
+def corrigir_group_by(sql: str) -> str:
+    """
+    Adiciona GROUP BY se houver COUNT(*) e outras colunas no SELECT sem GROUP BY.
+    """
     sql_upper = sql.upper()
 
-    # só atua se houver COUNT e não existir GROUP BY
     if "COUNT(" in sql_upper and "GROUP BY" not in sql_upper:
-
-        # captura o conteúdo entre SELECT e FROM
-        match_select = re.search(
-            r"SELECT\s+(.*?)\s+FROM",
-            sql,
-            re.IGNORECASE
-        )
-
-        if not match_select:
+        match_select = re.search(r"SELECT\s+(.*?)\s+FROM", sql, re.IGNORECASE)
+        if not match_select: 
             return sql
 
         select_part = match_select.group(1)
-
-        # separa colunas do SELECT
         colunas = [c.strip() for c in select_part.split(",")]
-
-        # remove agregações
-        colunas_sem_count = [
-            c for c in colunas
-            if "COUNT" not in c.upper()
+        
+        colunas_sem_agregacao = [
+            c for c in colunas 
+            if not re.search(r"COUNT\(|SUM\(|AVG\(|MIN\(|MAX\(", c, re.IGNORECASE)
         ]
 
-        # se só tiver COUNT(*), não precisa GROUP BY
-        if not colunas_sem_count:
-            return sql
+        if colunas_sem_agregacao:
+            group_by_clause = ", ".join(colunas_sem_agregacao)
+            # Encontra a posição do FROM para inserir o GROUP BY antes de ORDER BY ou LIMIT, se existirem
+            from_match = re.search(r"FROM\s+\S+\s*(.*)", sql, re.IGNORECASE)
+            if from_match:
+                rest_of_query = from_match.group(1)
+                # Verifica se já existe ORDER BY ou LIMIT
+                order_by_match = re.search(r"ORDER BY", rest_of_query, re.IGNORECASE)
+                limit_match = re.search(r"LIMIT", rest_of_query, re.IGNORECASE)
 
-        group_by = ", ".join(colunas_sem_count)
-
-        sql_corrigido = sql + f" GROUP BY {group_by}"
-
-        return sql_corrigido
+                if order_by_match:
+                    insert_pos = sql.upper().find("ORDER BY")
+                    return sql[:insert_pos] + f" GROUP BY {group_by_clause} " + sql[insert_pos:]
+                elif limit_match:
+                    insert_pos = sql.upper().find("LIMIT")
+                    return sql[:insert_pos] + f" GROUP BY {group_by_clause} " + sql[insert_pos:]
+                else:
+                    return sql + f" GROUP BY {group_by_clause}"
+            else:
+                return sql + f" GROUP BY {group_by_clause}"
 
     return sql
 
-import re
-
-def corrigir_ilike(sql):
+def corrigir_ilike(sql: str) -> str:
     """
-    Corrige padrões inválidos como:
-    ILIKE 'ATIVO'%
-    ILIKE 'INATIVO'%
+    Corrige padrões ILIKE inválidos como 'ATIVO'% para '%ATIVO%'.
     """
+    # Padrão para encontrar ILIKE 'valor'% ou ILIKE 'valor'
+    pattern = r"ILIKE\s+\'([^\']+)\'(%?)"
+    
+    def replace_ilike(match):
+        value = match.group(1)
+        # Se o valor já contém %, não adiciona novamente
+        if '%' in value:
+            return f"ILIKE '{value}'"
+        return f"ILIKE '%{value}%'"
 
-    pattern = r"ILIKE\s+'([^']+)'%"
-
-    sql_corrigido = re.sub(
-        pattern,
-        r"ILIKE '%\1%'",
-        sql,
-        flags=re.IGNORECASE
-    )
-
+    sql_corrigido = re.sub(pattern, replace_ilike, sql, flags=re.IGNORECASE)
     return sql_corrigido
 
-# 🔎 EXECUTAR
-def executar_sql(sql):
+# --- 3. Funções de Execução de SQL --- #
+
+def executar_sql_supabase(sql: str):
+    """
+    Executa a query SQL no Supabase e retorna os resultados.
+    Aplica validações e correções antes da execução.
+    """
     if not sql:
-        raise Exception("SQL não foi gerado")
+        raise ValueError("A query SQL está vazia. Não há nada para executar.")
 
-    sql = validar_sql(sql)
-    sql = corrigir_group_by(sql)
-    sql = corrigir_ilike(sql)
+    # Aplica as validações e correções
+    sql_validado = validar_sql(sql)
+    sql_corrigido_group_by = corrigir_group_by(sql_validado)
+    sql_final = corrigir_ilike(sql_corrigido_group_by)
 
-    st.write("🛠️ SQL FINAL EXECUTADO:", sql)
+    st.info(f"ðŸ› ï¸ SQL FINAL EXECUTADO: `{sql_final}`")
 
-    res = supabase.rpc("execute_sql", {"query": sql}).execute()
-
-    if not res.data:
-        return "Nenhum resultado encontrado."
-
-    if isinstance(res.data, list) and len(res.data) > 0:
-        if "count" in res.data[0]:
-            return res.data[0]["count"]
-
-    return res.data
-# 🗣️ RESPOSTA
-def gerar_resposta(pergunta, resultado):
-
-    # 🚨 se for número, responde direto
-    if isinstance(resultado, int):
-        return f"O total é de {resultado} servidores."
-
-    prompt = f"""
-Pergunta: {pergunta}
-Resultado: {resultado}
-
-Responda:
-- usando APENAS o resultado
-- NÃO invente desculpas
-- NÃO diga que não tem acesso a dados
-"""
-
-    res = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    return res.choices[0].message.content
-
-# 💬 UI
-st.title("📊 Consulta Inteligente RH-RS")
-
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-pergunta = st.chat_input("Ex: quantos servidores ativos na adm direta?")
-if pergunta:
     try:
-        with st.spinner("Consultando..."):
+        # Supabase RPC para executar SQL (assumindo que 'execute_sql' é uma função pg no Supabase)
+        # ATENÇÃO: Esta abordagem assume que 'execute_sql' é uma função segura no seu banco de dados
+        # que filtra ou sanitiza a entrada. Para maior segurança, considere usar parâmetros de consulta
+        # ou construir a query de forma mais controlada se o Supabase permitir.
+        res = supabase_client.rpc("execute_sql", {"query": sql_final}).execute()
+        
+        if res.data is None:
+            return "Nenhum resultado encontrado ou a função retornou nulo."
 
-            # 👇 SALVA PERGUNTA
-            st.session_state.chat.append({
-                "role": "user",
-                "content": pergunta
-            })
-
-            sql_gerado = gerar_sql(pergunta)
-
-            st.write("🔍 SQL GERADO (IA):", sql_gerado)
-
-            sql_editado = st.text_area(
-                "✏️ Ajuste o SQL se necessário:",
-                value=sql_gerado,
-                height=150
-            )
-
-            resultado = executar_sql(sql_editado)
-
-            st.write("📊 Resultado bruto:", resultado)
-
-            resposta = gerar_resposta(pergunta, resultado)
-
-            msg = {"role": "assistant", "content": resposta}
-
-            if isinstance(resultado, list):
-                msg["data"] = pd.DataFrame(resultado)
-
-            st.session_state.chat.append(msg)
+        # Se for uma contagem, retorna o valor diretamente
+        if isinstance(res.data, list) and len(res.data) > 0 and "count" in res.data[0]:
+            return res.data[0]["count"]
+        
+        return res.data
 
     except Exception as e:
-        st.error(f"Erro: {str(e)}")
-        
-# 🧾 CHAT
-for msg in st.session_state.chat:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-        if "data" in msg:
-            st.dataframe(msg["data"])
+        st.error(f"Erro ao executar SQL no Supabase: {e}")
+        raise
+
+# --- 4. Funções de Geração de Resposta --- #
+
+def gerar_resposta_final(pergunta: str, resultado: any) -> str:
+    """
+    Gera uma resposta amigável para o usuário com base na pergunta e no resultado da consulta.
+    """
+    if isinstance(resultado, int):
+        return f"O total de servidores é de {resultado}."
+    
+    if isinstance(resultado, str) and resultado == "Nenhum resultado encontrado ou a função retornou nulo.":
+        return resultado
+
+    # Se o resultado for uma lista de dicionários (dados tabulares)
+    if isinstance(resultado, list) and resultado:
+        # Tenta usar a IA para resumir os dados se houver muitos
+        if len(resultado) > 5:
+            prompt_resumo = f"""
+            Com base na pergunta do usuário e nos resultados da consulta SQL, gere um resumo conciso.
+            Pergunta: {pergunta}
+            Resultados (primeiras 5 linhas para contexto): {resultado[:5]}
+            
+            Regras:
+            - Responda de forma amigável e informativa.
+            - NÃO mencione que você é uma IA ou que está usando SQL.
+            - NÃO invente informações.
+            - Se os resultados forem muitos, apenas diga que há muitos resultados e apresente os dados brutos.
+            """
+            try:
+                resposta_ia = groq_client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "user", "content": prompt_resumo}
+                    ]
+                )
+                return resposta_ia.choices[0].message.content.strip()
+            except Exception:
+                # Fallback se a IA de resumo falhar
+                return f"Foram encontrados {len(resultado)} registros. Veja os dados brutos abaixo."
+        else:
+            # Para poucos resultados, pode-se listar ou apenas apresentar a tabela
+            return "Aqui estão os resultados encontrados:"
+
+    return "Não foi possível gerar uma resposta textual para o resultado. Veja os dados brutos abaixo."
+
+# --- 5. Interface do Usuário (Streamlit) --- #
+
+st.set_page_config(page_title="Consulta Inteligente RH-RS", page_icon="ðŸ“Š", layout="wide")
+st.title("ðŸ“Š Consulta Inteligente RH-RS")
+st.markdown("Uma ferramenta para consultar dados do sistema RHE via linguagem natural.")
+
+# Inicializa o histórico do chat na sessão do Streamlit
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Campo de entrada para a pergunta do usuário
+pergunta_usuario = st.chat_input("Ex: quantos servidores ativos na administração direta?")
+
+if pergunta_usuario:
+    # Adiciona a pergunta do usuário ao histórico
+    st.session_state.chat_history.append({"role": "user", "content": pergunta_usuario})
+    
+    with st.spinner("Processando sua consulta..."):
+        try:
+            # 1. Gerar SQL pela IA
+            sql_gerado_ia = gerar_sql_ia(pergunta_usuario)
+            
+            # Permite ao usuário editar o SQL gerado
+            sql_editavel = st.text_area(
+                "âœï¸ SQL Gerado (edite se necessário):",
+                value=sql_gerado_ia,
+                height=150,
+                key=f"sql_editor_{len(st.session_state.chat_history)}"
+            )
+
+            # 2. Executar SQL
+            resultado_execucao = executar_sql_supabase(sql_editavel)
+            
+            st.write("ðŸ“Š Resultado Bruto da Consulta:", resultado_execucao)
+
+            # 3. Gerar resposta final
+            resposta_final = gerar_resposta_final(pergunta_usuario, resultado_execucao)
+            
+            # Adiciona a resposta do assistente ao histórico
+            msg_assistente = {"role": "assistant", "content": resposta_final}
+            if isinstance(resultado_execucao, list) and resultado_execucao and not isinstance(resultado_execucao, str):
+                msg_assistente["data"] = pd.DataFrame(resultado_execucao)
+            st.session_state.chat_history.append(msg_assistente)
+
+        except ValueError as ve:
+            st.error(f"Erro na validação: {ve}")
+            st.session_state.chat_history.append({"role": "assistant", "content": f"Erro: {ve}"})
+        except Exception as e:
+            st.error(f"Ocorreu um erro inesperado: {e}")
+            st.session_state.chat_history.append({"role": "assistant", "content": f"Ocorreu um erro inesperado ao processar sua solicitação. Por favor, tente novamente ou reformule a pergunta. Detalhes: {e}"})
+
+# Exibe o histórico do chat
+for mensagem in st.session_state.chat_history:
+    with st.chat_message(mensagem["role"]):
+        st.write(mensagem["content"])
+        if "data" in mensagem:
+            st.dataframe(mensagem["data"])"])))
