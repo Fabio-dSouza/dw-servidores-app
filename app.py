@@ -195,6 +195,26 @@ def corrigir_group_by(sql):
 
     return sql
 
+import re
+
+def corrigir_ilike(sql):
+    """
+    Corrige padrões inválidos como:
+    ILIKE 'ATIVO'%
+    ILIKE 'INATIVO'%
+    """
+
+    pattern = r"ILIKE\s+'([^']+)'%"
+
+    sql_corrigido = re.sub(
+        pattern,
+        r"ILIKE '%\1%'",
+        sql,
+        flags=re.IGNORECASE
+    )
+
+    return sql_corrigido
+
 # 🔎 EXECUTAR
 def executar_sql(sql):
     if not sql:
