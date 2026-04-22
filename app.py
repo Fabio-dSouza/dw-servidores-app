@@ -26,11 +26,11 @@ IA_RETRY_DELAY = 1.0  # segundos
 
 # --- 1.b Clients com cache --- #
 
-@st.experimental_singleton
+@st.cache_resource
 def get_supabase_client():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-@st.experimental_singleton
+@st.cache_resource
 def get_groq_client():
     return Groq(api_key=GROQ_API_KEY)
 
