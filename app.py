@@ -381,28 +381,76 @@ st.set_page_config(
 # ---------- CSS ---------- #
 st.markdown("""
 <style>
+
+/* fundo principal */
 .main {
-    background-color: #f8fafc;
+    background-color: #f5f7fb;
 }
 
+/* container principal */
+.block-container {
+    padding-top: 2rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+
+/* sidebar */
 [data-testid="stSidebar"] {
-    background-color: #0f172a;
+    background: linear-gradient(
+        180deg,
+        #0f766e 0%,
+        #115e59 100%
+    );
 }
 
+/* textos sidebar */
 [data-testid="stSidebar"] * {
     color: white;
 }
 
+/* cards metric */
 div[data-testid="metric-container"] {
     background-color: white;
-    border-radius: 12px;
-    padding: 15px;
-    box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
 }
 
-.block-container {
-    padding-top: 2rem;
+/* dataframe */
+[data-testid="stDataFrame"] {
+    background-color: white;
+    border-radius: 12px;
 }
+
+/* botões */
+.stButton > button {
+    background-color: #14b8a6;
+    color: white;
+    border-radius: 10px;
+    border: none;
+    padding: 0.5rem 1rem;
+}
+
+.stButton > button:hover {
+    background-color: #0d9488;
+    color: white;
+}
+
+/* chat input */
+[data-testid="stChatInput"] {
+    background-color: white;
+    border-radius: 12px;
+}
+
+/* expanders */
+details {
+    background-color: white;
+    border-radius: 10px;
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
