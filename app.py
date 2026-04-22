@@ -19,7 +19,7 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 TABELA_CONSULTA = "dw.view_completa_limpa"
 
 # Colunas permitidas para consulta
-COLUNAS_PERMITIDAS = "tipo_orgao, orgao, cargo, categoria, vinculo, situacao"
+COLUNAS_PERMITIDAS = "tipo_orgao, orgao, cargo, categoria, vinculo, situacao_padronizada"
 
 # --- 2. Funções de Geração e Validação de SQL --- #
 
