@@ -163,6 +163,17 @@ def extrair_sql(texto):
 
     return match.group(1).strip()
 
+def corrigir_ilike_quotes(sql):
+    pattern = r"(ILIKE\s+'%[^']+)(\s+LIMIT)"
+    
+    match = re.search(pattern, sql, re.IGNORECASE)
+    
+    if match:
+        trecho_corrigido = match.group(1) + "%'" + match.group(2)
+        sql = re.sub(pattern, trecho_corrigido, sql, flags=re.IGNORECASE)
+    
+    return sql
+
 # ---------------- VALIDAÇÃO ---------------- #
 
 def validar_sql(sql):
@@ -188,6 +199,8 @@ def validar_sql(sql):
         sql += f" LIMIT {DEFAULT_LIMIT}"
 
     return sql
+
+
 
 # ---------------- EXECUÇÃO ---------------- #
 
