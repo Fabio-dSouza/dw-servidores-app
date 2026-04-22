@@ -71,17 +71,19 @@ resposta para o usuário: "Existem 1.897 servidores ativos no cargo de APPGG no 
 
 
 - Para filtros textuais SEMPRE use:
+
+- Para situacao:
+use match exato:
+situacao ILIKE 'ATIVO'
+situacao ILIKE 'INATIVO'
+
+- Para orgao, cargo, categoria:
+use contains:
+orgao ILIKE '%EDUCACAO%'
+cargo ILIKE '%APPGG%'
+categoria ILIKE '%MAGISTERIO%'
 coluna ILIKE '%VALOR%'
 
-Exemplo:
-situacao ILIKE '%ATIVO%'
-orgao ILIKE '%EDUCACAO%'
-cargo ILIKE '%APPGG%'
-
-Exemplo:
-situacao ILIKE '%ATIVO%'
-orgao ILIKE '%EDUCACAO%'
-cargo ILIKE '%APPGG%'
 
 - NÃO use "="
 - NÃO use ponto e vírgula
