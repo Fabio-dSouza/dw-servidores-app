@@ -414,10 +414,10 @@ if pergunta:
 
             sql = extrair_sql(sql_bruto)
             sql = corrigir_filtro_orgao(sql, pergunta)
+            sql = corrigir_equals_orgao(sql)   # NOVA LINHA
             sql = corrigir_ilike_quotes(sql)
             sql = corrigir_group_by(sql)
-            sql = corrigir_select_all(sql, pergunta)
-            sql = validar_sql(sql, pergunta)
+            sql = validar_sql(sql)
 
             st.write("SQL final:")
             st.code(sql, language="sql")
