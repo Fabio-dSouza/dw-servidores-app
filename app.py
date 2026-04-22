@@ -119,25 +119,41 @@ Pergunta: {pergunta}
 
     return sql
 
+import re
+
 def extrair_sql(conteudo):
-    import re
-
-    matches = re.findall(r"SELECT[\s\S]*", conteudo, re.IGNORECASE)
-
-    if not matches:
-        print("⚠️ RESPOSTA DA IA:", conteudo)  # DEBUG
-        raise Exception("Nenhum SELECT encontrado na resposta da IA")
-
-    sql = matches[0]
-
-    sql = sql.split("\n")[0] if "\n" in sql else sql
-
-    sql = (
-        sql.replace("```sql", "")
-           .replace("```", "")
-           .replace(";", "")
-           .strip()
+    # remove markdown
+    conteudo = (
+        conteudo.replace("```sql", "")
+        .replace("```", "")
+        .strip()
     )
+
+    # pega apenas o primeiro SELECT até o primeiro ;
+    match = re.search(
+        r"(SELECT[\s\S]*?;)",
+        conteudo,
+        re.IGNORECASE
+    )
+
+    if match:
+        sql = match.group(1)
+    else:
+        # fallback caso não tenha ;
+        match = re.search(
+            r"(SELECT[\s\S]*)",
+            conteudo,
+            re.IGNORECASE
+        )
+
+        if not match:
+            raise Exception(
+                f"Nenhum SQL encontrado. Resposta IA: {conteudo}"
+            )
+
+        sql = match.group(1)
+
+    sql = sql.replace(";", "").strip()
 
     return sql
 
