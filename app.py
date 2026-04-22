@@ -11,7 +11,7 @@ supabase = create_client(
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-TABELA = "dw.view_completa"
+TABELA = "dw.view_completa_limpa"
 
 # 🧠 GERAR SQL
 def gerar_sql(pergunta):
