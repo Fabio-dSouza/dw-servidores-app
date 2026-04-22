@@ -126,6 +126,7 @@ def gerar_sql_ia(pergunta):
 # ---------------- EXTRAÇÃO ---------------- #
 
 def extrair_sql(texto):
+    # remove markdown
     texto = re.sub(
         r"```sql|```",
         "",
@@ -133,19 +134,24 @@ def extrair_sql(texto):
         flags=re.IGNORECASE
     ).strip()
 
+    # pega apenas o primeiro SELECT até GROUP BY/ORDER BY/LIMIT/fim
     match = re.search(
-        r"(SELECT[\s\S]*?)(?:;|$)",
+        r"(SELECT[\s\S]*?(?:GROUP BY[\s\S]*?|ORDER BY[\s\S]*?|LIMIT\s+\d+|FROM[\s\S]*?))(?:$|\n\n|Essa query|Explicação|Observação)",
         texto,
         re.IGNORECASE
     )
 
-    if not match:
-        raise Exception("Nenhum SQL válido encontrado")
+    if match:
+        sql = match.group(1)
 
-    sql = match.group(1).strip()
-    sql = re.sub(r"\s+", " ", sql)
+        sql = re.sub(r"\s+", " ", sql).strip()
 
-    return sql
+        # remove ponto e vírgula
+        sql = sql.replace(";", "")
+
+        return sql
+
+    raise Exception("Nenhum SQL válido encontrado")
 
 # ---------------- CORREÇÃO ORGÃO ---------------- #
 
