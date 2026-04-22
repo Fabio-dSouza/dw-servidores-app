@@ -18,7 +18,7 @@ def gerar_sql(pergunta):
     prompt = f"""
 Você é especialista em PostgreSQL.
 
-Gere uma query SQL para a tabela dw.view_completa.
+Gere uma query SQL para a tabela dw.view_completa_limpa.
 
 COLUNAS PERMITIDAS:
 tipo_orgao, orgao, cargo, categoria, vinculo, situacao
