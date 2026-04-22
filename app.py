@@ -204,29 +204,36 @@ def corrigir_ilike_quotes(sql):
 def corrigir_group_by(sql):
     sql_upper = sql.upper()
 
-    # se houver SUM + orgao_executivo sem GROUP BY
-    if (
-        "SUM(" in sql_upper
-        and "ORGAO_EXECUTIVO" in sql_upper
-        and "GROUP BY" not in sql_upper
-    ):
-        sql += " GROUP BY orgao_executivo"
+    # se já possui GROUP BY, não mexe
+    if "GROUP BY" in sql_upper:
+        return sql
 
-    # se houver SUM + categoria sem GROUP BY
-    if (
-        "SUM(" in sql_upper
-        and "CATEGORIA" in sql_upper
-        and "GROUP BY" not in sql_upper
-    ):
-        sql += " GROUP BY categoria"
+    # só corrige se houver agregação
+    if "SUM(" not in sql_upper:
+        return sql
 
-    # se houver SUM + cargo_nome sem GROUP BY
-    if (
-        "SUM(" in sql_upper
-        and "CARGO_NOME" in sql_upper
-        and "GROUP BY" not in sql_upper
-    ):
-        sql += " GROUP BY cargo_nome"
+    colunas_group = []
+
+    if "TIPO_ORGAO" in sql_upper:
+        colunas_group.append("tipo_orgao")
+
+    if "SITUACAO" in sql_upper:
+        colunas_group.append("situacao")
+
+    if "ORGAO_EXECUTIVO" in sql_upper:
+        colunas_group.append("orgao_executivo")
+
+    if "CATEGORIA" in sql_upper:
+        colunas_group.append("categoria")
+
+    if "CARGO_NOME" in sql_upper:
+        colunas_group.append("cargo_nome")
+
+    if "TIPO_VINCULO" in sql_upper:
+        colunas_group.append("tipo_vinculo")
+
+    if colunas_group:
+        sql += " GROUP BY " + ", ".join(colunas_group)
 
     return sql
 
