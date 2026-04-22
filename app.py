@@ -89,6 +89,9 @@ ILIKE '%valor%'
 GROUP BY
 
 7. Retorne SOMENTE SQL
+8. Não explique a consulta
+9. Não escreva texto antes ou depois do SQL
+10. Não use markdown
 
 Exemplo:
 SELECT SUM(total_servidores) as total
