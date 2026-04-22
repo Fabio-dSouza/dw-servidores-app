@@ -201,6 +201,24 @@ def corrigir_ilike_quotes(sql):
 
     return sql
 
+# ADICIONE AQUI
+def corrigir_equals_orgao(sql):
+    pattern = r"orgao_executivo\s*=\s*'([^']+)'"
+
+    match = re.search(pattern, sql, re.IGNORECASE)
+
+    if match:
+        valor = match.group(1)
+
+        sql = re.sub(
+            pattern,
+            f"orgao_executivo ILIKE '%{valor}%'",
+            sql,
+            flags=re.IGNORECASE
+        )
+
+    return sql
+
 def corrigir_group_by(sql):
     sql_upper = sql.upper()
 
